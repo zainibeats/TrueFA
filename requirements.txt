@@ -1,0 +1,4 @@
+Pillow>=9.5.0
+pyotp>=2.8.0
+opencv-python>=4.8.0
+zxing>=0.15.0 
