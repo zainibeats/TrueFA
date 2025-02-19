@@ -4,71 +4,67 @@ import re
 import cv2
 import pyotp
 import urllib.parse
-from zxing import BarCodeReader
+import os
+import numpy as np
 
 class TwoFactorAuth:
     def __init__(self):
         self.secret = None
-        self.reader = BarCodeReader()
+        self.qr_detector = cv2.QRCodeDetector()
 
     def extract_secret_from_qr(self, image_path):
-        """Extract the secret key from a QR code image."""
+        # Extract secret key from QR code image
         try:
-            # Read the image using OpenCV
+            # Clean up path and make absolute
+            image_path = os.path.abspath(image_path.strip().strip("'").strip('"'))
+            
+            # Check file exists
+            if not os.path.exists(image_path):
+                return None, f"File not found: {image_path}"
+            
+            # Read image
             image = cv2.imread(image_path)
             if image is None:
-                return None, "Could not read the image file"
-            
-            # Convert BGR to RGB (zxing expects RGB)
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                return None, f"Could not read the image file: {image_path}"
             
             # Decode QR code
-            result = self.reader.decode(image_rgb)
+            retval, decoded_info, points, straight_qrcode = self.qr_detector.detectAndDecodeMulti(image)
             
-            if not result:
+            if not retval or not decoded_info:
                 return None, "No QR code found in the image"
             
-            # Get the QR code data
-            qr_data = result.raw
+            # Find valid otpauth URL in decoded QR codes
+            for qr_data in decoded_info:
+                if str(qr_data).startswith('otpauth://'):
+                    # Parse URL for secret
+                    parsed = urllib.parse.urlparse(qr_data)
+                    params = dict(urllib.parse.parse_qsl(parsed.query))
+                    
+                    if 'secret' in params:
+                        return params['secret'], None
             
-            # Parse the otpauth URL
-            if not str(qr_data).startswith('otpauth://'):
-                return None, "Invalid QR code format: Not a valid otpauth URL"
-            
-            # Parse the URL to get the secret
-            parsed = urllib.parse.urlparse(qr_data)
-            params = dict(urllib.parse.parse_qsl(parsed.query))
-            
-            if 'secret' not in params:
-                return None, "No secret key found in QR code"
-                
-            return params['secret'], None
+            return None, "No valid otpauth URL found in QR codes"
             
         except Exception as e:
             return None, f"Error processing image: {str(e)}"
 
     def validate_secret(self, secret):
-        """Validate the format of the secret key."""
-        # Remove spaces and convert to uppercase
+        # Validate base32 encoded secret key format
         secret = secret.strip().upper()
-        
-        # Check if the secret is base32 encoded
         base32_pattern = r'^[A-Z2-7]+=*$'
         if not re.match(base32_pattern, secret):
             return False
-            
         return True
 
     def generate_code(self):
-        """Generate the current TOTP code."""
+        # Generate current TOTP code
         if not self.secret:
             return None
-            
         totp = pyotp.TOTP(self.secret)
         return totp.now()
 
     def get_remaining_time(self):
-        """Get remaining time until next code rotation."""
+        # Get seconds until next code rotation
         return 30 - (int(time.time()) % 30)
 
 def main():
@@ -110,7 +106,7 @@ def main():
             print("Invalid choice. Please try again.")
             continue
             
-        # If we have a valid secret, start generating codes
+        # Generate codes if secret is set
         if auth.secret:
             print("\nGenerating TOTP codes. Press Ctrl+C to stop.")
             try:
