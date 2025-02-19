@@ -28,6 +28,7 @@ MANIFEST
 
 # Test files
 test/
+qrtest.png
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
