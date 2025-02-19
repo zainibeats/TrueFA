@@ -19,9 +19,8 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code and images directory
+# Copy source code
 COPY src/ ./src/
-COPY images/ ./images/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
