@@ -1,4 +1,4 @@
-# Tru-FA
+# TrueFA
 
 A lightweight Python application that generates 2FA codes from QR code images or manual keys. This tool is designed to be used when you need to scan a QR code on the same device that's displaying it.
 
