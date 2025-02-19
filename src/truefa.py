@@ -71,7 +71,7 @@ def main():
     auth = TwoFactorAuth()
     
     while True:
-        print("\n=== 2FA Code Generator ===")
+        print("\n=== TrueFA ===")
         print("1. Load QR code from image")
         print("2. Enter secret key manually")
         print("3. Exit")
