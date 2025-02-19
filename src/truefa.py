@@ -10,10 +10,12 @@ from pathlib import Path
 import signal
 import ctypes
 import platform
+from datetime import datetime
 
 class SecureString:
     def __init__(self, string):
         self._string = string
+        self._creation_time = datetime.now()
         
     def __del__(self):
         self.clear()
@@ -23,21 +25,32 @@ class SecureString:
             # Overwrite the string with zeros
             ctypes.memset(id(self._string) + 20, 0, len(self._string))
             self._string = None
+            self._creation_time = None
             
     def get(self):
         return self._string if hasattr(self, '_string') else None
+
+    def age(self):
+        """Get age of secret in seconds"""
+        if not hasattr(self, '_creation_time') or not self._creation_time:
+            return float('inf')
+        return (datetime.now() - self._creation_time).total_seconds()
 
 class TwoFactorAuth:
     def __init__(self):
         self.secret = None
         self.qr_detector = cv2.QRCodeDetector()
         self.images_dir = os.getenv('QR_IMAGES_DIR', os.path.join(os.getcwd(), 'images'))
+        self.is_generating = False
         # Register signal handlers for secure cleanup
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
         """Handle program termination securely"""
+        if self.is_generating:
+            self.is_generating = False
+            return
         self.cleanup()
         print("\nExiting securely...")
         sys.exit(0)
@@ -155,16 +168,24 @@ def main():
         print("You can use either the full path or just the filename if it's in the images directory")
         
         while True:
+            # Auto-cleanup of old secrets (e.g., after 5 minutes)
+            if auth.secret and auth.secret.age() > 300:  # 5 minutes
+                print("\nAuto-clearing old secret for security...")
+                auth.cleanup()
+
             print("\n=== TrueFA ===")
             print("1. Load QR code from image")
             print("2. Enter secret key manually")
-            print("3. Clear current secret")
-            print("4. Clear screen")
-            print("5. Exit")
+            print("3. Clear screen")
+            print("4. Exit")
             
-            choice = input("\nEnter your choice (1-5): ")
+            choice = input("\nEnter your choice (1-4): ")
             
             if choice == '1':
+                # Auto-cleanup before new secret
+                if auth.secret:
+                    auth.cleanup()
+                
                 image_path = input("Enter the path to the QR code image: ")
                 secret, error = auth.extract_secret_from_qr(image_path)
                 
@@ -172,32 +193,27 @@ def main():
                     print(f"Error: {error}")
                     continue
                     
-                # Clear any existing secret before setting new one
-                auth.cleanup()
                 auth.secret = secret
                 print("Secret key successfully extracted from QR code!")
                 
             elif choice == '2':
+                # Auto-cleanup before new secret
+                if auth.secret:
+                    auth.cleanup()
+                
                 secret_input = input("Enter the secret key: ").strip()
                 if not auth.validate_secret(secret_input):
                     print("Error: Invalid secret key format. Must be base32 encoded.")
                     continue
                     
-                # Clear any existing secret before setting new one
-                auth.cleanup()
                 auth.secret = SecureString(secret_input)
                 print("Secret key successfully set!")
                 
             elif choice == '3':
-                auth.cleanup()
-                print("Secret cleared from memory.")
-                continue
-                
-            elif choice == '4':
                 clear_screen()
                 continue
                 
-            elif choice == '5':
+            elif choice == '4':
                 auth.cleanup()
                 print("Goodbye!")
                 sys.exit(0)
@@ -209,14 +225,17 @@ def main():
             # Generate codes if secret is set
             if auth.secret:
                 print("\nGenerating TOTP codes. Press Ctrl+C to stop.")
+                auth.is_generating = True
                 try:
-                    while True:
+                    while auth.is_generating:
                         code = auth.generate_code()
                         remaining = auth.get_remaining_time()
                         print(f"\rCurrent code: {code} (refreshes in {remaining}s)", end='', flush=True)
                         time.sleep(1)
                 except KeyboardInterrupt:
+                    auth.is_generating = False
                     print("\nStopped code generation.")
+                    # Don't clear the secret here, let it auto-clear after timeout
 
     except Exception as e:
         # Secure cleanup on any exception
