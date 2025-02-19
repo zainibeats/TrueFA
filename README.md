@@ -12,12 +12,7 @@ A Python application that generates 2FA codes from QR code images or manual keys
 - Dependencies listed in requirements.txt
 
 ## Installation
-1. Install the required system dependencies for pyzbar:
-   - Windows: Download and install the [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-   - Linux: `sudo apt-get install libzbar0`
-   - macOS: `brew install zbar`
-
-2. Install Python dependencies:
+Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
