@@ -20,7 +20,7 @@ pip install -r requirements.txt
 ## Usage
 Run the main script:
 ```bash
-python qr_2fa.py
+python src/qr_2fa.py
 ```
 
 You can either:
