@@ -6,7 +6,7 @@ A lightweight Python application that generates 2FA codes from QR code images or
 - Generate 2FA codes from QR code images (screenshots or saved images)
 - Manual key entry support
 - Time-based OTP generation (TOTP)
-- Automatic security cleanup of sensitive data
+- Automatic cleanup of sensitive data
 
 ## Requirements
 - Python 3.8+
@@ -68,7 +68,7 @@ python src/truefa.py
 
 The application will generate TOTP codes that update every 30 seconds. Press Ctrl+C to stop code generation and return to the menu.
 
-> **Note:** This application is designed with security in mind and does not save any sensitive information. Each session starts fresh, and all secrets are automatically cleared from memory after use.
+> **Note:** This application is designed with security in mind and does not save any sensitive information. Each session starts fresh, and all secrets are automatically cleared from memory after use. If you need to save the QR code image or secret key, please use any other secure method. I have a separate project - [SuprSafe](https://github.com/zainibeats/suprsafe) - that would fit your needs.
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
