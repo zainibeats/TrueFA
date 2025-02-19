@@ -6,6 +6,7 @@ A lightweight Python application that generates 2FA codes from QR code images or
 - Generate 2FA codes from QR code images (screenshots or saved images)
 - Manual key entry support
 - Time-based OTP generation (TOTP)
+- Automatic security cleanup of sensitive data
 
 ## Requirements
 - Python 3.8+
@@ -20,7 +21,7 @@ Install Python dependencies:
 pip install -r requirements.txt
 ```
 
-### Option 2: Docker Installation
+### Option 2: Docker Installation (Recommended)
 Build the Docker image:
 ```bash
 docker build -t truefa .
@@ -33,18 +34,8 @@ docker build -t truefa .
 python src/truefa.py
 ```
 
-### Running with Docker
-1. First, place your QR code images in the `images` folder of this project. For example:
-   ```
-   YourProject/
-   ├── images/
-   │   └── your-qr-code.png
-   ├── src/
-   │   └── truefa.py
-   └── ...
-   ```
-
-2. Run the Docker container with the images folder mounted:
+### Running with Docker (Recommended)
+1. Start the container:
    ```bash
    # On Windows PowerShell:
    docker run -it -v "${PWD}\images:/app/images" truefa
@@ -56,17 +47,28 @@ python src/truefa.py
    docker run -it -v "$(pwd)/images:/app/images" truefa
    ```
 
-3. When the program asks for the image path, you can either:
-   - Use just the filename if it's in the images folder (e.g., `your-qr-code.png`)
-   - Use the full path inside the container (e.g., `/app/images/your-qr-code.png`)
+2. The container will automatically create an `images` directory in your current folder if it doesn't exist. This directory will be used for sharing QR code images with the container.
 
-### Image Location Guide
-- Windows path: `C:\Users\[YourUsername]\Documents\Dev\gh_repos\OTP1\images`
-- Inside container path: `/app/images`
+3. Add your QR code images to the newly created `images` directory. The directory structure will look like:
+   ```
+   YourCurrentDirectory/
+   └── images/
+       └── your-qr-code.png
+   ```
 
-The application will then generate TOTP codes that update every 30 seconds.
+4. When the program asks for the image path, you can either:
+   - Use just the filename (e.g., `your-qr-code.png`)
+   - Use the full container path (e.g., `/app/images/your-qr-code.png`)
 
-> **Note:** saving the QR code image or manual keys permanently is not yet implemented and not advised to do so without further encryption. Use any other secure method to save the qr code image or secret key. If you prefer a lightweight and offline solution, I have a separate project - [SuprSafe](https://github.com/zainibeats/suprsafe) - that would fit your needs
+### Security Features
+- Automatic cleanup of sensitive data after 5 minutes
+- Secure memory handling of secret keys
+- No permanent storage of secrets
+- Graceful handling of program termination
+
+The application will generate TOTP codes that update every 30 seconds. Press Ctrl+C to stop code generation and return to the menu.
+
+> **Note:** This application is designed with security in mind and does not save any sensitive information. Each session starts fresh, and all secrets are automatically cleared from memory after use.
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
