@@ -11,30 +11,176 @@ import signal
 import ctypes
 import platform
 from datetime import datetime
+import mmap
+import secrets
+from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+import base64
+
+class SecureMemory:
+    """Secure memory handler with page locking and secure wiping"""
+    def __init__(self, size=4096):
+        self.size = size
+        self.mm = None
+        try:
+            # Create a memory map with read/write access
+            self.mm = mmap.mmap(-1, self.size, mmap.MAP_PRIVATE | mmap.MAP_ANONYMOUS, mmap.PROT_READ | mmap.PROT_WRITE)
+            if platform.system() != 'Windows':
+                # Lock memory to prevent swapping (Unix-like systems only)
+                try:
+                    import resource
+                    resource.mlock(self.mm)
+                except Exception:
+                    pass  # If mlock isn't available, continue without it
+        except Exception:
+            pass  # Handle initialization failures gracefully
+
+    def __del__(self):
+        try:
+            self.secure_wipe()
+        except Exception:
+            pass  # Ignore cleanup errors in destructor
+
+    def secure_wipe(self):
+        """Securely wipe memory multiple times"""
+        if self.mm is not None and hasattr(self.mm, 'write'):
+            try:
+                # Multiple pass secure wipe
+                for _ in range(3):
+                    self.mm.seek(0)
+                    # Write random data
+                    self.mm.write(secrets.token_bytes(self.size))
+                self.mm.close()
+            except Exception:
+                pass  # Handle wiping errors gracefully
+            finally:
+                self.mm = None
 
 class SecureString:
     def __init__(self, string):
-        self._string = string
+        self._memory = None
+        self._size = len(string)
         self._creation_time = datetime.now()
-        
+        try:
+            self._memory = SecureMemory()
+            if self._memory.mm is not None:
+                # Store the string in secured memory
+                self._memory.mm.seek(0)
+                self._memory.mm.write(string.encode())
+        except Exception:
+            self._memory = None
+            
     def __del__(self):
-        self.clear()
+        try:
+            self.clear()
+        except Exception:
+            pass  # Ignore cleanup errors in destructor
         
     def clear(self):
-        if hasattr(self, '_string'):
-            # Overwrite the string with zeros
-            ctypes.memset(id(self._string) + 20, 0, len(self._string))
-            self._string = None
-            self._creation_time = None
+        if self._memory is not None:
+            try:
+                self._memory.secure_wipe()
+            except Exception:
+                pass  # Handle wiping errors gracefully
+            finally:
+                self._memory = None
+                self._size = 0
+                self._creation_time = None
             
     def get(self):
-        return self._string if hasattr(self, '_string') else None
+        if self._memory is None or self._memory.mm is None:
+            return None
+        try:
+            self._memory.mm.seek(0)
+            return self._memory.mm.read(self._size).decode()
+        except Exception:
+            return None
 
     def age(self):
         """Get age of secret in seconds"""
-        if not hasattr(self, '_creation_time') or not self._creation_time:
+        if self._creation_time is None:
             return float('inf')
         return (datetime.now() - self._creation_time).total_seconds()
+
+class SecureStorage:
+    """Handles secure storage of TOTP secrets"""
+    def __init__(self):
+        self.salt = None
+        self.key = None
+        # Use environment variable for storage path if set, otherwise use home directory
+        self.storage_path = os.getenv('TRUEFA_STORAGE_PATH', 
+                                    os.path.join(os.path.expanduser('~'), '.truefa'))
+        # Ensure directory exists with secure permissions
+        os.makedirs(self.storage_path, mode=0o700, exist_ok=True)
+        # Ensure permissions are correct even if directory already existed
+        os.chmod(self.storage_path, 0o700)
+
+    def derive_key(self, password):
+        """Derive encryption key from password using Scrypt"""
+        self.salt = secrets.token_bytes(16)
+        kdf = Scrypt(
+            salt=self.salt,
+            length=32,
+            n=2**14,  # CPU/memory cost parameter
+            r=8,      # Block size parameter
+            p=1,      # Parallelization parameter
+        )
+        self.key = kdf.derive(password.encode())
+
+    def encrypt_secret(self, secret, name):
+        """Encrypt a TOTP secret"""
+        if not self.key:
+            raise ValueError("No encryption key set")
+        
+        # Generate a random nonce
+        nonce = secrets.token_bytes(12)
+        
+        # Create cipher
+        aesgcm = AESGCM(self.key)
+        
+        # Encrypt the secret
+        ciphertext = aesgcm.encrypt(
+            nonce,
+            secret.encode(),
+            name.encode()  # Use name as associated data
+        )
+        
+        # Combine salt, nonce, and ciphertext for storage
+        return base64.b64encode(self.salt + nonce + ciphertext).decode('utf-8')
+
+    def decrypt_secret(self, encrypted_data, password, name):
+        """Decrypt a TOTP secret"""
+        try:
+            # Decode the combined data
+            data = base64.b64decode(encrypted_data.encode('utf-8'))
+            
+            # Extract components
+            salt = data[:16]
+            nonce = data[16:28]
+            ciphertext = data[28:]
+            
+            # Derive key from password
+            kdf = Scrypt(
+                salt=salt,
+                length=32,
+                n=2**14,
+                r=8,
+                p=1,
+            )
+            key = kdf.derive(password.encode())
+            
+            # Decrypt
+            aesgcm = AESGCM(key)
+            plaintext = aesgcm.decrypt(
+                nonce,
+                ciphertext,
+                name.encode()  # Use name as associated data
+            )
+            
+            return plaintext.decode('utf-8')
+        except Exception:
+            return None
 
 class TwoFactorAuth:
     def __init__(self):
@@ -42,6 +188,7 @@ class TwoFactorAuth:
         self.qr_detector = cv2.QRCodeDetector()
         self.images_dir = os.getenv('QR_IMAGES_DIR', os.path.join(os.getcwd(), 'images'))
         self.is_generating = False
+        self.storage = SecureStorage()
         # Register signal handlers for secure cleanup
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -176,10 +323,12 @@ def main():
             print("\n=== TrueFA ===")
             print("1. Load QR code from image")
             print("2. Enter secret key manually")
-            print("3. Clear screen")
-            print("4. Exit")
+            print("3. Save current secret")
+            print("4. Load saved secret")
+            print("5. Clear screen")
+            print("6. Exit")
             
-            choice = input("\nEnter your choice (1-4): ")
+            choice = input("\nEnter your choice (1-6): ")
             
             if choice == '1':
                 # Auto-cleanup before new secret
@@ -208,12 +357,75 @@ def main():
                     
                 auth.secret = SecureString(secret_input)
                 print("Secret key successfully set!")
-                
+
             elif choice == '3':
+                if not auth.secret:
+                    print("No secret currently set!")
+                    continue
+                
+                name = input("Enter a name for this secret: ").strip()
+                if not name:
+                    print("Name cannot be empty!")
+                    continue
+                
+                password = input("Enter encryption password: ")
+                if not password:
+                    print("Password cannot be empty!")
+                    continue
+                
+                try:
+                    auth.storage.derive_key(password)
+                    encrypted = auth.storage.encrypt_secret(auth.secret.get(), name)
+                    
+                    # Save to file
+                    with open(os.path.join(auth.storage.storage_path, f"{name}.enc"), "w") as f:
+                        f.write(encrypted)
+                    
+                    print(f"Secret saved as '{name}'")
+                except Exception as e:
+                    print("Error saving secret!")
+                    continue
+
+            elif choice == '4':
+                name = input("Enter the name of the secret to load: ").strip()
+                if not name:
+                    print("Name cannot be empty!")
+                    continue
+                
+                file_path = os.path.join(auth.storage.storage_path, f"{name}.enc")
+                if not os.path.exists(file_path):
+                    print(f"No saved secret found with name '{name}'")
+                    continue
+                
+                password = input("Enter decryption password: ")
+                if not password:
+                    print("Password cannot be empty!")
+                    continue
+                
+                try:
+                    with open(file_path, "r") as f:
+                        encrypted = f.read()
+                    
+                    decrypted = auth.storage.decrypt_secret(encrypted, password, name)
+                    if not decrypted:
+                        print("Failed to decrypt secret (wrong password?)")
+                        continue
+                    
+                    # Auto-cleanup before new secret
+                    if auth.secret:
+                        auth.cleanup()
+                    
+                    auth.secret = SecureString(decrypted)
+                    print(f"Secret '{name}' loaded successfully!")
+                except Exception as e:
+                    print("Error loading secret!")
+                    continue
+                
+            elif choice == '5':
                 clear_screen()
                 continue
                 
-            elif choice == '4':
+            elif choice == '6':
                 auth.cleanup()
                 print("Goodbye!")
                 sys.exit(0)
