@@ -35,16 +35,16 @@ python src/truefa.py
 ```
 
 ### Running with Docker (Recommended)
-1. Start the container:
+1. First run of the container:
    ```bash
    # On Windows PowerShell:
-   docker run -it -v "${PWD}\images:/app/images" truefa
+   docker run -it --name truefa -v "${PWD}\images:/app/images" truefa
 
    # On Windows CMD:
-   docker run -it -v "%cd%\images:/app/images" truefa
+   docker run -it --name truefa -v "%cd%\images:/app/images" truefa
 
    # On Linux/macOS:
-   docker run -it -v "$(pwd)/images:/app/images" truefa
+   docker run -it --name truefa -v "$(pwd)/images:/app/images" truefa
    ```
 
 2. The container will automatically create an `images` directory in your current folder if it doesn't exist. This directory will be used for sharing QR code images with the container.
@@ -59,6 +59,31 @@ python src/truefa.py
 4. When the program asks for the image path, you can either:
    - Use just the filename (e.g., `your-qr-code.png`)
    - Use the full container path (e.g., `/app/images/your-qr-code.png`)
+
+### Managing the Container
+
+After the first run, you can manage the container using these commands:
+
+1. Stop the container:
+   ```bash
+   docker stop truefa
+   ```
+
+2. Start the container again (will reattach to your terminal):
+   ```bash
+   docker start -ai truefa
+   ```
+
+3. Remove the container when you're done:
+   ```bash
+   docker rm truefa
+   ```
+
+Note: If you need to run multiple instances, you can specify different names:
+```bash
+docker run -it --name truefa1 -v "${PWD}\images:/app/images" truefa
+docker run -it --name truefa2 -v "${PWD}\images:/app/images" truefa
+```
 
 ### Security Features
 - Automatic cleanup of sensitive data after 5 minutes
