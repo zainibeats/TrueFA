@@ -29,6 +29,7 @@ MANIFEST
 # Test files
 qrtest.png
 images/
+*.enc
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
