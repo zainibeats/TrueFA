@@ -8,5 +8,14 @@ services:
       - ./images:/home/truefa/app/images
       - ./.truefa:/home/truefa/.truefa
       - ${USERPROFILE:-$HOME}/Downloads:/home/truefa/Downloads
-    stdin_open: true  # docker run -i
-    tty: true        # docker run -t 
+    stdin_open: true   # docker run -i
+    tty: true         # docker run -t
+    # Ensure proper terminal handling
+    environment:
+      - PYTHONUNBUFFERED=1
+      - COLUMNS=80
+      - LINES=24
+      - TERM=xterm-256color
+    # Ensure clean removal
+    restart: "no"
+    init: true 
