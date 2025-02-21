@@ -144,7 +144,7 @@ class SecureStorage:
         self.salt = None
         self.key = None
         self.master_hash = None
-        self.is_unlocked = False
+        self._is_unlocked = False  # Private variable for state
         self.storage_path = os.path.expanduser('~/.truefa')
         self.exports_path = os.path.join(self.storage_path, 'exports')
         os.makedirs(self.storage_path, mode=0o700, exist_ok=True)
@@ -174,6 +174,20 @@ class SecureStorage:
             except Exception:
                 pass
 
+    @property
+    def is_unlocked(self):
+        """Check if storage is unlocked"""
+        return self._is_unlocked and self.key is not None
+
+    def _unlock(self):
+        """Set the unlocked state"""
+        self._is_unlocked = True
+
+    def _lock(self):
+        """Reset the unlocked state"""
+        self._is_unlocked = False
+        self.key = None
+
     # #security #auth-check
     def has_master_password(self):
         """Check if a master password has been set"""
@@ -194,9 +208,10 @@ class SecureStorage:
             )
             kdf.verify(password.encode(), self.master_hash)
             self.derive_key(password)  # Set up encryption key
-            self.is_unlocked = True
+            self._unlock()  # Set unlocked state
             return True
         except Exception:
+            self._lock()  # Reset state on failure
             return False
 
     # #security #auth-setup
@@ -222,7 +237,7 @@ class SecureStorage:
         
         # Set up encryption key
         self.derive_key(password)
-        self.is_unlocked = True
+        self._unlock()  # Set unlocked state
 
     # #security #key-derivation
     def derive_key(self, password):
@@ -320,15 +335,17 @@ class SecureStorage:
         return secrets
 
     # #storage #export
-    def export_secrets(self, export_path, password):
+    def export_secrets(self, export_path, export_password):
         """Export secrets as a password-protected file."""
-        if not self.verify_master_password(password):
-            print("Master password verification failed")
+                
+        if not self.is_unlocked:
+            print("Storage must be unlocked to export secrets")
             return False
         
         if not export_path:
             print("Export cancelled.")
             return False
+        
         
         # Clean up the export path
         export_path = export_path.strip('"').strip("'")
@@ -351,6 +368,7 @@ class SecureStorage:
             temp_export = os.path.join(self.exports_path, '.temp_export')
             
             # Write secrets to temporary file
+            secrets_count = 0
             with open(temp_export, 'w') as f:
                 secrets = {}
                 for filename in os.listdir(self.storage_path):
@@ -361,24 +379,33 @@ class SecureStorage:
                             decrypted = self.decrypt_secret(encrypted, name)
                             if decrypted:
                                 secrets[name] = decrypted
+                                secrets_count += 1
                 json.dump(secrets, f, indent=4)
             
             # Use GPG for symmetric encryption only (no keys)
             try:
+                # Create a pipe for GPG password
+                gpg_env = os.environ.copy()
+                gpg_env['GNUPGHOME'] = self.exports_path
+                
+                # Create a pipe for GPG password
+                pass_file = os.path.join(self.exports_path, '.gpg_pass')
+                with open(pass_file, 'w') as f:
+                    f.write(export_password + '\n')
+                
+                # Use process substitution to provide password
                 result = subprocess.run([
                     'gpg',
                     '--batch',
-                    '--yes',
+                    '--passphrase-fd', '0',
                     '--symmetric',
                     '--cipher-algo', 'AES256',
-                    '--passphrase', password,
                     '--output', export_path,
                     temp_export
-                ], capture_output=True, text=True)
+                ], input=export_password.encode(), env=gpg_env, capture_output=True)
                 
-                # Clean up temporary file
-                os.remove(temp_export)
-                
+                # Clean up temporary files
+                os.remove(temp_export)                
                 if result.returncode == 0:
                     print(f"Secrets exported to {export_path}")
                     return True
@@ -557,27 +584,6 @@ class TwoFactorAuth:
                 return False
         return True
 
-    # #storage #export-flow
-    def export_secrets(self):
-        """Export secrets to password-protected file"""
-        if not self.ensure_unlocked("export secrets"):
-            return
-            
-        output_path = input("\nEnter path for exported file (will be encrypted): ").strip()
-        if not output_path:
-            print("Export cancelled.")
-            return
-            
-        if not output_path.endswith('.gpg'):
-            output_path += '.gpg'
-            
-        password = input("Enter password for GPG encryption: ")
-        if not password:
-            print("Export cancelled.")
-            return
-            
-        self.storage.export_secrets(output_path, password)
-
 # #utils #screen
 def clear_screen():
     """Clear the terminal screen securely"""
@@ -710,10 +716,45 @@ def main():
                     continue
 
             elif choice == '5':
-                try:
-                    auth.export_secrets()
-                except Exception as e:
-                    print(f"Export failed: {str(e)}")
+                
+                # First verify master password
+                if not auth.storage.is_unlocked:
+                    print("\nPlease enter your master password to access secrets.")
+                    if not auth.ensure_unlocked("access secrets for export"):
+                        continue
+
+                # Then check if we have any secrets to export
+                secrets = auth.storage.load_all_secrets()
+                if not secrets:
+                    print("\nNo secrets available to export.")
+                    continue
+                                
+                output_path = input("\nEnter path for exported file (will be encrypted): ").strip()
+                if not output_path:
+                    print("Export cancelled.")
+                    continue
+                    
+                if not output_path.endswith('.gpg'):
+                    output_path += '.gpg'
+                
+                print("\nNow enter a password to encrypt your export file.")
+                print("This can be different from your master password.")
+                print("You'll need this password when decrypting the file later.")
+                export_password = input("Export file password: ")
+                if not export_password:
+                    print("Export cancelled.")
+                    continue
+                
+                confirm = input("Confirm export file password: ")
+                if export_password != confirm:
+                    print("Passwords don't match. Export cancelled.")
+                    continue
+                
+                if auth.storage.export_secrets(output_path, export_password):
+                    print(f"\nSecrets have been exported to your Downloads folder")
+                    print("You can decrypt this file using: gpg -d " + output_path)
+                else:
+                    print("Failed to export secrets")
                 continue
                 
             elif choice == '6':
