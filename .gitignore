@@ -29,7 +29,7 @@ MANIFEST
 # Test files
 qrtest.png
 images/
-*.enc
+.truefa/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
