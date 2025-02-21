@@ -1,117 +1,148 @@
 # TrueFA
 
-A secure Python application for managing 2FA (Two-Factor Authentication) codes. Designed to handle QR code screenshots and TOTP code generation with a focus on security and usability.
-
-> **Note**: This application has not been thoroughly tested. Use at your own risk.
+A secure two-factor authentication code generator with support for QR code scanning and encrypted storage.
 
 ## Features
-- **QR Code Support**: Read 2FA setup QR codes from image files
-- **Manual Entry**: Enter secret keys manually with format validation
-- **Secure Storage**: 
-  - AES-256 encrypted storage of secrets
-  - Master password protection
-  - Automatic memory wiping
-- **Export Options**: 
-  - Export secrets as password-protected files
-  - Files saved directly to Downloads folder
-  - Simple GPG symmetric encryption (no keys required)
-- **Security Features**:
-  - Memory protection against swapping
-  - Auto-cleanup after 5 minutes of inactivity
-  - Secure string handling
-  - Path validation and sanitization
 
-## Requirements
-- Python 3.8+
-- Docker (recommended for containerized usage)
-- GPG (installed automatically in Docker)
-- Dependencies from requirements.txt
+- Secure memory handling for sensitive data
+- QR code scanning support
+- Encrypted storage of TOTP secrets
+- Master password protection
+- Export/import functionality
+- Auto-cleanup of secrets
+- Cross-platform support
 
 ## Installation
 
 ### Option 1: Docker (Recommended)
+
+1. Clone the repository:
 ```bash
-# Build the Docker image
-docker build -t truefa .
+git clone https://github.com/zainibeats/truefa.git
+cd truefa
 ```
 
-### Option 2: Direct Installation
+2. Create required directories:
 ```bash
-# Install Python dependencies
+# Windows PowerShell:
+New-Item -ItemType Directory -Force -Path images, .truefa
+
+# Linux/macOS:
+mkdir -p images .truefa
+```
+
+3. Build and run with Docker Compose:
+```bash
+docker-compose up --build
+```
+
+The application will be available in your terminal. Place your QR code images in the `images` directory to scan them.
+
+### Option 2: Direct Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/zainibeats/truefa.git
+cd truefa
+```
+
+2. Install dependencies:
+```bash
 pip install -r requirements.txt
+```
 
-# Install system dependencies (Linux/Debian)
-sudo apt-get install libzbar0 zbar-tools libjpeg62-turbo gnupg2
-
-# Install system dependencies (macOS)
-brew install zbar gpg
+3. Install the package:
+```bash
+pip install -e .
 ```
 
 ## Usage
 
-### Running with Docker (Recommended)
-1. Start the container:
-   ```bash
-   # Windows PowerShell:
-   docker run -it --name truefa `
-     -v "${PWD}\images:/app/images" `
-     -v "${PWD}\.truefa:/app/.truefa" `
-     -v "${HOME}\Downloads:/home/truefa/Downloads" `
-     truefa
+### Using with Docker
 
-   # Windows CMD:
-   docker run -it --name truefa ^
-     -v "%CD%\images:/app/images" ^
-     -v "%CD%\.truefa:/app/.truefa" ^
-     -v "%USERPROFILE%\Downloads:/home/truefa/Downloads" ^
-     truefa
+1. Place your QR code images in the `images` directory
+2. Start the container:
+```bash
+docker-compose up
+```
+3. Use the interactive menu in your terminal
+4. Exported files will appear in your Downloads folder
+5. To stop the application, press Ctrl+C
 
-   # Linux/macOS:
-   docker run -it --name truefa \
-     -v "$(pwd)/images:/app/images" \
-     -v "$(pwd)/.truefa:/app/.truefa" \
-     -v "$HOME/Downloads:/home/truefa/Downloads" \
-     truefa
-   ```
+### Running Locally
 
-2. Directory Structure:
-   - `images/`: Place your QR code images here
-   - `.truefa/`: Secure storage for encrypted secrets
-   - `Downloads/`: Exported secrets appear here
+1. Run the application:
+```bash
+truefa
+```
 
-### Basic Workflow
-1. **First Time Setup**:
-   - The app will prompt you to set a master password
-   - This password protects all stored secrets
+2. Follow the on-screen menu to:
+   - Load QR codes from images
+   - Enter TOTP secrets manually
+   - Save secrets securely
+   - Load saved secrets
+   - Export secrets
 
-2. **Adding New Secrets**:
-   - Option 1: Place QR code image in `images/` folder and use "Load QR code"
-   - Option 2: Use "Enter secret key manually" for direct key entry
+## Directory Structure
 
-3. **Managing Secrets**:
-   - Save secrets with descriptive names
-   - Load saved secrets anytime with master password
-   - Secrets auto-clear after 5 minutes of inactivity
+- `images/` - Place your QR code images here
+- `.truefa/` - Secure storage for encrypted secrets
+- `Downloads/` - Location for exported secrets
 
-4. **Exporting Secrets**:
-   - Ensure you have saved secrets first
-   - Choose "Export secrets" from the menu
-   - Enter a filename (e.g., `backup` or `secrets`)
-   - Provide a password for the export file
-   - Find the `.gpg` file in your Downloads folder
+## Security Features
 
-5. **Using Exported Files**:
-   ```bash
-   # Decrypt an exported file
-   gpg -d Downloads/secrets.gpg
-   ```
+- Secure memory handling with page locking
+- AES-GCM encryption for stored secrets
+- Scrypt key derivation for master password
+- Auto-cleanup of secrets after timeout
+- GPG encryption for exports
 
-### Security Notes
-- Master password is required for viewing/saving secrets
-- Secrets are encrypted using AES-256
-- Memory is protected against swapping where possible
-- Exported files use GPG symmetric encryption
-- No keys or certificates are stored or required
+## Requirements
+
+### For Docker Installation
+- Docker
+- Docker Compose
+
+### For Direct Installation
+- Python 3.8 or higher
+- GPG for export functionality
+- ZBar library for QR code scanning
+
+## Development
+
+1. Set up a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+2. Install development dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+## Project Structure
+
+```
+truefa/
+├── src/
+│   ├── security/         # Security-related modules
+│   │   ├── secure_memory.py
+│   │   ├── secure_string.py
+│   │   └── secure_storage.py
+│   ├── totp/            # TOTP-related functionality
+│   │   └── auth.py
+│   ├── utils/           # Utility functions
+│   │   └── screen.py
+│   └── main.py          # Main application entry point
+├── images/              # Directory for QR code images
+├── .truefa/             # Secure storage directory
+├── Dockerfile           # Docker configuration
+├── docker-compose.yml   # Docker Compose configuration
+├── requirements.txt     # Python dependencies
+└── setup.py            # Package installation configuration
+```
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+
+MIT License
