@@ -1,4 +1,4 @@
-# #imports #system
+# #imports #system-utils
 import sys
 import time
 import re
@@ -9,27 +9,27 @@ import ctypes
 import platform
 from datetime import datetime
 import mmap
+import subprocess
 
-# #imports #security
+# #imports #crypto-utils
 import secrets
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 import base64
 import json
-import gnupg
 
-# #imports #qr-processing
+# #imports #qr-utils
 from PIL import Image
 from pyzbar.pyzbar import decode
 import pyotp
 import urllib.parse
 
-# #security #memory-protection
+# #security #memory
 class SecureMemory:
     """Secure memory handler with page locking and secure wiping"""
     
-    # #init #memory-allocation
+    # #init #memory
     def __init__(self, size=4096):
         self.size = size
         self.mm = None
@@ -61,7 +61,7 @@ class SecureMemory:
         except Exception:
             pass  # Ignore cleanup errors in destructor
 
-    # #security #cleanup
+    # #security #memory-wipe
     def secure_wipe(self):
         """Securely wipe memory multiple times"""
         if self.mm is not None and hasattr(self.mm, 'write'):
@@ -77,9 +77,11 @@ class SecureMemory:
             finally:
                 self.mm = None
 
-# #security #string-protection
+# #security #string
 class SecureString:
-    # #init #secure-storage
+    """Secure string storage with automatic cleanup"""
+    
+    # #init #string
     def __init__(self, string):
         self._memory = None
         self._size = len(string)
@@ -105,7 +107,7 @@ class SecureString:
         except Exception:
             pass  # Ignore cleanup errors in destructor
         
-    # #security #cleanup
+    # #security #string-cleanup
     def clear(self):
         if self._memory is not None:
             try:
@@ -117,7 +119,7 @@ class SecureString:
                 self._size = 0
                 self._creation_time = None
             
-    # #security #access
+    # #security #string-access
     def get(self):
         if self._memory is None or self._memory.mm is None:
             return None
@@ -137,7 +139,7 @@ class SecureString:
 class SecureStorage:
     """Handles secure storage of TOTP secrets and master password"""
     
-    # #init #filesystem
+    # #init #paths
     def __init__(self):
         self.salt = None
         self.key = None
@@ -147,8 +149,6 @@ class SecureStorage:
         self.exports_path = os.path.join(self.storage_path, 'exports')
         os.makedirs(self.storage_path, mode=0o700, exist_ok=True)
         os.makedirs(self.exports_path, mode=0o700, exist_ok=True)
-        self.gnupg_home = os.path.join(self.storage_path, '.gnupg')
-        os.makedirs(self.gnupg_home, mode=0o700, exist_ok=True)
         
         # Try to set permissions, but don't fail if we can't (e.g., mounted volume)
         try:
@@ -174,11 +174,12 @@ class SecureStorage:
             except Exception:
                 pass
 
+    # #security #auth-check
     def has_master_password(self):
         """Check if a master password has been set"""
         return self.master_hash is not None
 
-    # #security #authentication
+    # #security #auth-verify
     def verify_master_password(self, password):
         """Verify the master password"""
         if not self.master_hash or not self.salt:
@@ -198,6 +199,7 @@ class SecureStorage:
         except Exception:
             return False
 
+    # #security #auth-setup
     def set_master_password(self, password):
         """Set up the master password"""
         self.salt = secrets.token_bytes(16)
@@ -222,7 +224,7 @@ class SecureStorage:
         self.derive_key(password)
         self.is_unlocked = True
 
-    # #security #key-management
+    # #security #key-derivation
     def derive_key(self, password):
         """Derive encryption key from password using Scrypt"""
         if not self.salt:
@@ -285,6 +287,7 @@ class SecureStorage:
         except Exception:
             return None
 
+    # #storage #file-io
     def load_secret(self, name):
         """Load a secret from storage."""
         if not self.is_unlocked:
@@ -296,6 +299,7 @@ class SecureStorage:
         except Exception:
             return None
 
+    # #storage #file-io
     def load_all_secrets(self):
         """Load all secrets from storage."""
         if not self.is_unlocked:
@@ -317,7 +321,7 @@ class SecureStorage:
 
     # #storage #export
     def export_secrets(self, export_path, password):
-        """Export secrets as an encrypted file."""
+        """Export secrets as a password-protected file."""
         if not self.verify_master_password(password):
             print("Master password verification failed")
             return False
@@ -329,17 +333,18 @@ class SecureStorage:
         # Clean up the export path
         export_path = export_path.strip('"').strip("'")
         
-        # If it's a Windows path, convert it to a filename
-        if '\\' in export_path or ':' in export_path:
-            export_path = os.path.basename(export_path)
+        # If it's not a full path, save to Downloads folder
+        if not os.path.isabs(export_path):
+            # Get Downloads folder path based on OS
+            if platform.system() == 'Windows':
+                downloads_dir = os.path.expanduser('~\\Downloads')
+            else:
+                downloads_dir = os.path.expanduser('~/Downloads')
+            export_path = os.path.join(downloads_dir, export_path)
         
         # Ensure the export path has .gpg extension
         if not export_path.endswith('.gpg'):
             export_path += '.gpg'
-        
-        # If path is not absolute, put it in the exports directory
-        if not os.path.isabs(export_path):
-            export_path = os.path.join(self.exports_path, export_path)
         
         try:
             # Create a temporary file for the export
@@ -347,38 +352,54 @@ class SecureStorage:
             
             # Write secrets to temporary file
             with open(temp_export, 'w') as f:
-                json.dump(self.load_all_secrets(), f, indent=4)
+                secrets = {}
+                for filename in os.listdir(self.storage_path):
+                    if filename.endswith('.enc'):
+                        name = filename[:-4]  # Remove .enc extension
+                        with open(os.path.join(self.storage_path, filename), 'r') as sf:
+                            encrypted = sf.read()
+                            decrypted = self.decrypt_secret(encrypted, name)
+                            if decrypted:
+                                secrets[name] = decrypted
+                json.dump(secrets, f, indent=4)
             
-            # Set up GPG with custom home directory
-            gpg = gnupg.GPG(gnupghome=self.gnupg_home)
-            
-            # Read the temporary file
-            with open(temp_export, 'rb') as f:
-                # Encrypt the file
-                encrypted_data = gpg.encrypt_file(
-                    f,
-                    recipients=None,
-                    symmetric=True,
-                    passphrase=password,
-                    output=export_path
-                )
-            
-            # Clean up temporary file
-            os.remove(temp_export)
-            
-            if encrypted_data.ok:
-                print(f"Secrets exported to {export_path}")
-                return True
-            else:
-                print(f"GPG encryption failed: {encrypted_data.status}")
+            # Use GPG for symmetric encryption only (no keys)
+            try:
+                result = subprocess.run([
+                    'gpg',
+                    '--batch',
+                    '--yes',
+                    '--symmetric',
+                    '--cipher-algo', 'AES256',
+                    '--passphrase', password,
+                    '--output', export_path,
+                    temp_export
+                ], capture_output=True, text=True)
+                
+                # Clean up temporary file
+                os.remove(temp_export)
+                
+                if result.returncode == 0:
+                    print(f"Secrets exported to {export_path}")
+                    return True
+                else:
+                    print(f"GPG encryption failed: {result.stderr}")
+                    return False
+                
+            except subprocess.CalledProcessError as e:
+                print(f"GPG encryption failed: {str(e)}")
                 return False
-            
+                
         except Exception as e:
             print(f"Export failed: {str(e)}")
+            if os.path.exists(temp_export):
+                os.remove(temp_export)
             return False
 
-# #app #main-class
+# #app #main
 class TwoFactorAuth:
+    """Main application class for 2FA code generation"""
+    
     # #init #setup
     def __init__(self):
         self.secret = None
@@ -389,6 +410,7 @@ class TwoFactorAuth:
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
+    # #app #signal-handler
     def _signal_handler(self, signum, frame):
         """Handle program termination securely"""
         if self.is_generating:
@@ -407,7 +429,7 @@ class TwoFactorAuth:
 
     # #qr #processing
     def extract_secret_from_qr(self, image_path):
-        # Extract secret key from QR code image
+        """Extract secret key from QR code image"""
         try:
             # Clean up and validate the image path
             image_path = self._validate_image_path(image_path)
@@ -447,6 +469,7 @@ class TwoFactorAuth:
         except Exception as e:
             return None, "Error processing image"  # Generic error message for security
 
+    # #security #path-validation
     def _validate_image_path(self, image_path):
         """Validate and resolve the image path securely"""
         try:
@@ -478,8 +501,9 @@ class TwoFactorAuth:
         except Exception:
             return None
 
-    # #security #validation
+    # #security #input-validation
     def validate_secret(self, secret):
+        """Validate base32 encoded secret key format"""
         # Validate base32 encoded secret key format
         secret = secret.strip().upper()
         base32_pattern = r'^[A-Z2-7]+=*$'
@@ -489,6 +513,7 @@ class TwoFactorAuth:
 
     # #totp #generation
     def generate_code(self):
+        """Generate current TOTP code"""
         # Generate current TOTP code
         if not self.secret:
             return None
@@ -498,11 +523,13 @@ class TwoFactorAuth:
         totp = pyotp.TOTP(secret)
         return totp.now()
 
+    # #totp #timing
     def get_remaining_time(self):
+        """Get seconds until next code rotation"""
         # Get seconds until next code rotation
         return 30 - (int(time.time()) % 30)
 
-    # #security #authentication
+    # #security #auth-flow
     def ensure_unlocked(self, purpose="continue"):
         """Ensure storage is unlocked with master password"""
         if not self.storage.is_unlocked:
@@ -530,8 +557,9 @@ class TwoFactorAuth:
                 return False
         return True
 
+    # #storage #export-flow
     def export_secrets(self):
-        """Export secrets to GPG encrypted file"""
+        """Export secrets to password-protected file"""
         if not self.ensure_unlocked("export secrets"):
             return
             
@@ -558,7 +586,7 @@ def clear_screen():
     else:
         os.system('clear')
 
-# #app #entry-point
+# #app #entry
 def main():
     """Main application entry point and UI loop"""
     auth = TwoFactorAuth()
