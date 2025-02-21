@@ -1,6 +1,6 @@
 # TrueFA
 
-A secure Python application for managing 2FA (Two-Factor Authentication) codes. Designed to handle QR code images and TOTP code generation with a focus on security and usability.
+A secure Python application for managing 2FA (Two-Factor Authentication) codes. Designed to handle QR code screenshots and TOTP code generation with a focus on security and usability. 
 
 ## Features
 - **QR Code Support**: Read 2FA setup QR codes from image files
@@ -103,16 +103,6 @@ brew install zbar gpg
 - Memory is protected against swapping where possible
 - Exported files use GPG symmetric encryption
 - No keys or certificates are stored or required
-
-## Development
-The codebase uses consistent hashtag comments for easy navigation:
-- `#system-utils`: System-level utilities
-- `#crypto-utils`: Cryptography functions
-- `#qr-utils`: QR code processing
-- `#security`: Security features
-- `#storage`: File operations
-- `#totp`: TOTP code generation
-- `#app`: Application logic
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
