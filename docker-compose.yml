@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  truefa:
+    build: .
+    container_name: truefa
+    volumes:
+      - ./images:/home/truefa/app/images
+      - ./.truefa:/home/truefa/.truefa
+      - ${USERPROFILE:-$HOME}/Downloads:/home/truefa/Downloads
+    stdin_open: true  # docker run -i
+    tty: true        # docker run -t 
