@@ -33,6 +33,9 @@ COPY src/ ./src/
 # Set ownership of all files
 RUN chown -R truefa:truefa /app
 
+# Create volume mount points
+VOLUME ["/app/images", "/app/.truefa"]
+
 # Switch to non-root user
 USER truefa
 
