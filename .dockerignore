@@ -1,6 +1,7 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Python
 __pycache__/
@@ -29,17 +30,21 @@ venv/
 ENV/
 
 # IDE
-.idea/
 .vscode/
+.idea/
 
 # Application specific
-images/
-.truefa/
-*.gpg
+images/*
+!images/.gitkeep
+.truefa/*
+!.truefa/.gitkeep
+
+# Windows
+*.exe
+*.bat
 
 # Docker
-Dockerfile
-.dockerignore
+docker-compose.yml
 
 # Misc
 *.log
