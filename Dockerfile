@@ -24,10 +24,15 @@ RUN if [ ! -f README.md ]; then echo "# TrueFA\n\nA secure two-factor authentica
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir -e .
 
-# Set environment variables
-ENV QR_IMAGES_DIR=/home/truefa/app/images
-ENV HOME=/home/truefa
-ENV PYTHONPATH=/home/truefa/app
+# Make start script executable
+RUN chmod +x start.sh
 
-# Run the application
-CMD ["python", "-m", "src.main"] 
+# Set environment variables
+ENV QR_IMAGES_DIR=/home/truefa/app/images \
+    HOME=/home/truefa \
+    PYTHONPATH=/home/truefa/app \
+    PYTHONUNBUFFERED=1 \
+    TERM=xterm-256color
+
+# Use our start script
+ENTRYPOINT ["./start.sh"] 
