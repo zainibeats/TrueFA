@@ -1,43 +1,41 @@
 # Use Python 3.8 slim base image
-FROM python:3.8-slim
+FROM python:3.8-slim-buster
 
-# Set working directory
+# Create non-root user and set up directories
+RUN useradd -m truefa && \
+    mkdir -p /app/images /app/.truefa && \
+    chown -R truefa:truefa /app && \
+    chmod 755 /app/images && \
+    chmod 700 /app/.truefa
+
 WORKDIR /app
 
-# Install system dependencies for OpenCV and cryptography
-RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    build-essential \
-    libffi-dev \
-    libssl-dev \
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libzbar0 \
+    zbar-tools \
+    libjpeg62-turbo \
     && rm -rf /var/lib/apt/lists/*
 
-# Create a dedicated directory for QR code images with proper permissions
-RUN mkdir -p /app/images && chmod 755 /app/images
-
-# Create secure storage directory
-RUN mkdir -p /app/.truefa && chmod 700 /app/.truefa
-
-# Copy requirements first to leverage Docker cache
+# Copy and install requirements as root for better security
 COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy source code
+# Copy application code
 COPY src/ ./src/
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV QR_IMAGES_DIR=/app/images
-# Override the default storage path to use container path
-ENV TRUEFA_STORAGE_PATH=/app/.truefa
+# Set ownership of all files
+RUN chown -R truefa:truefa /app
 
-# Set Python to not write bytecode files
-ENV PYTHONDONTWRITEBYTECODE=1
-# Set Python to unbuffer stdout and stderr
-ENV PYTHONUNBUFFERED=1
+# Switch to non-root user
+USER truefa
 
-# Run the application
+# Set environment
+ENV PYTHONUNBUFFERED=1 \
+    QR_IMAGES_DIR=/app/images \
+    TRUEFA_STORAGE_PATH=/app/.truefa \
+    PYTHONDONTWRITEBYTECODE=1
+
 CMD ["python", "src/truefa.py"] 
