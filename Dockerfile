@@ -5,11 +5,13 @@ FROM python:3.8-slim-buster
 RUN useradd -u 1000 -m truefa
 
 # Set up directories with correct permissions
-RUN mkdir -p /app/images /app/.truefa && \
+RUN mkdir -p /app/images /app/.truefa /home/truefa/Downloads && \
     chown -R truefa:truefa /app && \
     chmod 755 /app && \
     chmod 755 /app/images && \
-    chmod 700 /app/.truefa
+    chmod 700 /app/.truefa && \
+    chown -R truefa:truefa /home/truefa/Downloads && \
+    chmod 755 /home/truefa/Downloads
 
 WORKDIR /app
 
@@ -34,7 +36,7 @@ COPY src/ ./src/
 RUN chown -R truefa:truefa /app
 
 # Create volume mount points
-VOLUME ["/app/images", "/app/.truefa"]
+VOLUME ["/app/images", "/app/.truefa", "/home/truefa/Downloads"]
 
 # Switch to non-root user
 USER truefa
