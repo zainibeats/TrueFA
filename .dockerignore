@@ -1,7 +1,6 @@
 # Git
 .git
 .gitignore
-.gitattributes
 
 # Python
 __pycache__/
@@ -9,7 +8,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -33,8 +31,11 @@ ENV/
 # IDE
 .idea/
 .vscode/
-*.swp
-*.swo
+
+# Application specific
+images/
+.truefa/
+*.gpg
 
 # Docker
 Dockerfile
