@@ -1,96 +1,118 @@
 # TrueFA
 
-A lightweight Python application that generates 2FA codes from QR code images or manual keys. This tool is designed to be used when you need to scan a QR code on the same device that's displaying it.
+A secure Python application for managing 2FA (Two-Factor Authentication) codes. Designed to handle QR code images and TOTP code generation with a focus on security and usability.
 
 ## Features
-- Generate 2FA codes from QR code images (screenshots or saved images)
-- Manual key entry support
-- Time-based OTP generation (TOTP)
-- Secure storage of secrets with master password protection
-- Export secrets as GPG-encrypted files
-- Automatic cleanup of sensitive data
+- **QR Code Support**: Read 2FA setup QR codes from image files
+- **Manual Entry**: Enter secret keys manually with format validation
+- **Secure Storage**: 
+  - AES-256 encrypted storage of secrets
+  - Master password protection
+  - Automatic memory wiping
+- **Export Options**: 
+  - Export secrets as password-protected files
+  - Files saved directly to Downloads folder
+  - Simple GPG symmetric encryption (no keys required)
+- **Security Features**:
+  - Memory protection against swapping
+  - Auto-cleanup after 5 minutes of inactivity
+  - Secure string handling
+  - Path validation and sanitization
 
 ## Requirements
 - Python 3.8+
-- Docker (optional, for containerized usage)
-- Dependencies listed in requirements.txt
+- Docker (recommended for containerized usage)
+- GPG (installed automatically in Docker)
+- Dependencies from requirements.txt
 
 ## Installation
 
-### Option 1: Direct Installation
-Install Python dependencies:
+### Option 1: Docker (Recommended)
 ```bash
-pip install -r requirements.txt
+# Build the Docker image
+docker build -t truefa .
 ```
 
-### Option 2: Docker Installation (Recommended)
-Build the Docker image:
+### Option 2: Direct Installation
 ```bash
-docker build -t truefa .
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install system dependencies (Linux/Debian)
+sudo apt-get install libzbar0 zbar-tools libjpeg62-turbo gnupg2
+
+# Install system dependencies (macOS)
+brew install zbar gpg
 ```
 
 ## Usage
 
-### Running Directly
-```bash
-python src/truefa.py
-```
-
 ### Running with Docker (Recommended)
-1. First run of the container:
+1. Start the container:
    ```bash
-   # On Windows PowerShell:
-   docker run -it --name truefa -v "${PWD}\images:/app/images" -v "${PWD}\.truefa:/app/.truefa" truefa
+   # Windows PowerShell:
+   docker run -it --name truefa `
+     -v "${PWD}\images:/app/images" `
+     -v "${PWD}\.truefa:/app/.truefa" `
+     -v "${HOME}\Downloads:/home/truefa/Downloads" `
+     truefa
 
-   # On Windows CMD:
-   docker run -it --name truefa -v "%cd%\images:/app/images" -v "%cd%\.truefa:/app/.truefa" truefa
-
-   # On Linux/macOS:
-   docker run -it --name truefa -v "$(pwd)/images:/app/images" -v "$(pwd)/.truefa:/app/.truefa" truefa
+   # Linux/macOS:
+   docker run -it --name truefa \
+     -v "$(pwd)/images:/app/images" \
+     -v "$(pwd)/.truefa:/app/.truefa" \
+     -v "$HOME/Downloads:/home/truefa/Downloads" \
+     truefa
    ```
 
-2. The container will create:
-   - An `images` directory for your QR code images
-   - A `.truefa` directory for secure storage and exports
+2. Directory Structure:
+   - `images/`: Place your QR code images here
+   - `.truefa/`: Secure storage for encrypted secrets
+   - `Downloads/`: Exported secrets appear here
 
-3. Using the Application:
-   - First use will prompt you to set up a master password
-   - Load QR codes by placing them in the `images` directory
-   - Save secrets with descriptive names for later use
-   - Export secrets as encrypted GPG files to `.truefa/exports`
+### Basic Workflow
+1. **First Time Setup**:
+   - The app will prompt you to set a master password
+   - This password protects all stored secrets
 
-4. Working with Files:
-   - QR code images: Use just the filename (e.g., `qrcode.png`) or full path
-   - Exported secrets: Will be saved in `.truefa/exports` with `.gpg` extension
-   - Saved secrets: Protected by your master password
+2. **Adding New Secrets**:
+   - Option 1: Place QR code image in `images/` folder and use "Load QR code"
+   - Option 2: Use "Enter secret key manually" for direct key entry
 
-### Managing the Container
+3. **Managing Secrets**:
+   - Save secrets with descriptive names
+   - Load saved secrets anytime with master password
+   - Secrets auto-clear after 5 minutes of inactivity
 
-After the first run, you can manage the container using these commands:
+4. **Exporting Secrets**:
+   - Ensure you have saved secrets first
+   - Choose "Export secrets" from the menu
+   - Enter a filename (e.g., `backup` or `secrets`)
+   - Provide a password for the export file
+   - Find the `.gpg` file in your Downloads folder
 
-1. Stop the container:
+5. **Using Exported Files**:
    ```bash
-   docker stop truefa
+   # Decrypt an exported file
+   gpg -d Downloads/secrets.gpg
    ```
 
-2. Start the container again (will reattach to your terminal):
-   ```bash
-   docker start -ai truefa
-   ```
+### Security Notes
+- Master password is required for viewing/saving secrets
+- Secrets are encrypted using AES-256
+- Memory is protected against swapping where possible
+- Exported files use GPG symmetric encryption
+- No keys or certificates are stored or required
 
-3. Remove the container when you're done:
-   ```bash
-   docker rm truefa
-   ```
-
-### Security Features
-- Master password protection for viewing and saving secrets
-- Automatic cleanup of sensitive data after 5 minutes
-- Secure memory handling of secret keys
-- GPG-encrypted exports
-- Graceful handling of program termination
-
-The application will generate TOTP codes that update every 30 seconds. Press Ctrl+C to stop code generation and return to the menu.
+## Development
+The codebase uses consistent hashtag comments for easy navigation:
+- `#system-utils`: System-level utilities
+- `#crypto-utils`: Cryptography functions
+- `#qr-utils`: QR code processing
+- `#security`: Security features
+- `#storage`: File operations
+- `#totp`: TOTP code generation
+- `#app`: Application logic
 
 ## License
 This project is licensed under the MIT License. See the LICENSE file for details.
