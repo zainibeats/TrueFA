@@ -8,7 +8,7 @@ RUN useradd -u 1000 -m truefa
 RUN mkdir -p /app/images /app/.truefa && \
     chown -R truefa:truefa /app && \
     chmod 755 /app && \
-    chmod 777 /app/images && \
+    chmod 755 /app/images && \
     chmod 700 /app/.truefa
 
 WORKDIR /app
@@ -19,6 +19,7 @@ RUN apt-get update && \
     libzbar0 \
     zbar-tools \
     libjpeg62-turbo \
+    gnupg2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install requirements as root for better security
