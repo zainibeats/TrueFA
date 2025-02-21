@@ -1,11 +1,11 @@
 import sys
 import time
 import re
-import cv2
+from PIL import Image
+from pyzbar.pyzbar import decode
 import pyotp
 import urllib.parse
 import os
-import numpy as np
 from pathlib import Path
 import signal
 import ctypes
@@ -33,6 +33,15 @@ class SecureMemory:
                     resource.mlock(self.mm)
                 except Exception:
                     pass  # If mlock isn't available, continue without it
+            else:
+                try:
+                    kernel32 = ctypes.windll.kernel32
+                    # Create a ctypes char buffer from the mmap object
+                    address = ctypes.addressof(ctypes.c_char.from_buffer(self.mm))
+                    if not kernel32.VirtualLock(address, ctypes.c_size_t(self.size)):
+                        print("Warning: Failed to lock memory on Windows")
+                except Exception as e:
+                    print("Warning: Windows memory locking failed:", e)
         except Exception:
             pass  # Handle initialization failures gracefully
 
@@ -46,11 +55,11 @@ class SecureMemory:
         """Securely wipe memory multiple times"""
         if self.mm is not None and hasattr(self.mm, 'write'):
             try:
-                # Multiple pass secure wipe
                 for _ in range(3):
                     self.mm.seek(0)
-                    # Write random data
-                    self.mm.write(secrets.token_bytes(self.size))
+                    # Using ctypes.memset on the buffer for more secure wiping
+                    buf = (ctypes.c_char * self.size).from_buffer(self.mm)
+                    ctypes.memset(ctypes.addressof(buf), 0, self.size)
                 self.mm.close()
             except Exception:
                 pass  # Handle wiping errors gracefully
@@ -70,6 +79,12 @@ class SecureString:
                 self._memory.mm.write(string.encode())
         except Exception:
             self._memory = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.clear()
             
     def __del__(self):
         try:
@@ -185,7 +200,6 @@ class SecureStorage:
 class TwoFactorAuth:
     def __init__(self):
         self.secret = None
-        self.qr_detector = cv2.QRCodeDetector()
         self.images_dir = os.getenv('QR_IMAGES_DIR', os.path.join(os.getcwd(), 'images'))
         self.is_generating = False
         self.storage = SecureStorage()
@@ -216,22 +230,25 @@ class TwoFactorAuth:
             if not image_path:
                 return None, "Invalid image path or file not found"
             
-            # Read image
-            image = cv2.imread(str(image_path))
-            if image is None:
+            # Read image using PIL
+            try:
+                image = Image.open(str(image_path))
+            except Exception:
                 return None, f"Could not read the image file: {image_path}"
             
-            # Decode QR code
-            retval, decoded_info, points, straight_qrcode = self.qr_detector.detectAndDecodeMulti(image)
+            # Decode QR code using pyzbar
+            decoded_objects = decode(image)
             
             # Clear the image data from memory
+            image.close()
             image = None
             
-            if not retval or not decoded_info:
+            if not decoded_objects:
                 return None, "No QR code found in the image"
             
             # Find valid otpauth URL in decoded QR codes
-            for qr_data in decoded_info:
+            for decoded_obj in decoded_objects:
+                qr_data = decoded_obj.data.decode('utf-8')
                 if str(qr_data).startswith('otpauth://'):
                     # Parse URL for secret
                     parsed = urllib.parse.urlparse(qr_data)
@@ -375,7 +392,8 @@ def main():
                 
                 try:
                     auth.storage.derive_key(password)
-                    encrypted = auth.storage.encrypt_secret(auth.secret.get(), name)
+                    with SecureString(auth.secret.get()) as temp_secret:
+                        encrypted = auth.storage.encrypt_secret(temp_secret.get(), name)
                     
                     # Save to file
                     with open(os.path.join(auth.storage.storage_path, f"{name}.enc"), "w") as f:
