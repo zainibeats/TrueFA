@@ -1,5 +1,4 @@
 pyotp==2.9.0
 pyzbar==0.1.9
 Pillow==10.2.0
-cryptography==41.0.7
-python-gnupg==0.5.2 
+cryptography==41.0.7 
