@@ -1,10 +1,7 @@
+# #imports #system
 import sys
 import time
 import re
-from PIL import Image
-from pyzbar.pyzbar import decode
-import pyotp
-import urllib.parse
 import os
 from pathlib import Path
 import signal
@@ -12,14 +9,27 @@ import ctypes
 import platform
 from datetime import datetime
 import mmap
+
+# #imports #security
 import secrets
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives import hashes
 import base64
+import json
+import gnupg
 
+# #imports #qr-processing
+from PIL import Image
+from pyzbar.pyzbar import decode
+import pyotp
+import urllib.parse
+
+# #security #memory-protection
 class SecureMemory:
     """Secure memory handler with page locking and secure wiping"""
+    
+    # #init #memory-allocation
     def __init__(self, size=4096):
         self.size = size
         self.mm = None
@@ -51,6 +61,7 @@ class SecureMemory:
         except Exception:
             pass  # Ignore cleanup errors in destructor
 
+    # #security #cleanup
     def secure_wipe(self):
         """Securely wipe memory multiple times"""
         if self.mm is not None and hasattr(self.mm, 'write'):
@@ -66,7 +77,9 @@ class SecureMemory:
             finally:
                 self.mm = None
 
+# #security #string-protection
 class SecureString:
+    # #init #secure-storage
     def __init__(self, string):
         self._memory = None
         self._size = len(string)
@@ -92,6 +105,7 @@ class SecureString:
         except Exception:
             pass  # Ignore cleanup errors in destructor
         
+    # #security #cleanup
     def clear(self):
         if self._memory is not None:
             try:
@@ -103,6 +117,7 @@ class SecureString:
                 self._size = 0
                 self._creation_time = None
             
+    # #security #access
     def get(self):
         if self._memory is None or self._memory.mm is None:
             return None
@@ -118,31 +133,110 @@ class SecureString:
             return float('inf')
         return (datetime.now() - self._creation_time).total_seconds()
 
+# #security #storage
 class SecureStorage:
-    """Handles secure storage of TOTP secrets"""
+    """Handles secure storage of TOTP secrets and master password"""
+    
+    # #init #filesystem
     def __init__(self):
         self.salt = None
         self.key = None
-        # Use environment variable for storage path if set, otherwise use home directory
-        self.storage_path = os.getenv('TRUEFA_STORAGE_PATH', 
-                                    os.path.join(os.path.expanduser('~'), '.truefa'))
-        # Ensure directory exists with secure permissions
+        self.master_hash = None
+        self.is_unlocked = False
+        self.storage_path = os.path.expanduser('~/.truefa')
+        self.exports_path = os.path.join(self.storage_path, 'exports')
         os.makedirs(self.storage_path, mode=0o700, exist_ok=True)
-        # Ensure permissions are correct even if directory already existed
-        os.chmod(self.storage_path, 0o700)
+        os.makedirs(self.exports_path, mode=0o700, exist_ok=True)
+        self.gnupg_home = os.path.join(self.storage_path, '.gnupg')
+        os.makedirs(self.gnupg_home, mode=0o700, exist_ok=True)
+        
+        # Try to set permissions, but don't fail if we can't (e.g., mounted volume)
+        try:
+            os.chmod(self.storage_path, 0o700)
+        except Exception:
+            # Check if we can at least write to the directory
+            test_file = os.path.join(self.storage_path, '.test')
+            try:
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+            except Exception as e:
+                raise Exception(f"Storage directory is not writable: {e}")
+        
+        # Load master password hash if it exists
+        self.master_file = os.path.join(self.storage_path, '.master')
+        if os.path.exists(self.master_file):
+            try:
+                with open(self.master_file, 'r') as f:
+                    data = json.load(f)
+                    self.master_hash = base64.b64decode(data['hash'])
+                    self.salt = base64.b64decode(data['salt'])
+            except Exception:
+                pass
 
-    def derive_key(self, password):
-        """Derive encryption key from password using Scrypt"""
+    def has_master_password(self):
+        """Check if a master password has been set"""
+        return self.master_hash is not None
+
+    # #security #authentication
+    def verify_master_password(self, password):
+        """Verify the master password"""
+        if not self.master_hash or not self.salt:
+            return False
+        try:
+            kdf = Scrypt(
+                salt=self.salt,
+                length=32,
+                n=2**14,
+                r=8,
+                p=1,
+            )
+            kdf.verify(password.encode(), self.master_hash)
+            self.derive_key(password)  # Set up encryption key
+            self.is_unlocked = True
+            return True
+        except Exception:
+            return False
+
+    def set_master_password(self, password):
+        """Set up the master password"""
         self.salt = secrets.token_bytes(16)
         kdf = Scrypt(
             salt=self.salt,
             length=32,
-            n=2**14,  # CPU/memory cost parameter
-            r=8,      # Block size parameter
-            p=1,      # Parallelization parameter
+            n=2**14,
+            r=8,
+            p=1,
+        )
+        self.master_hash = kdf.derive(password.encode())
+        
+        # Save master password hash
+        data = {
+            'hash': base64.b64encode(self.master_hash).decode('utf-8'),
+            'salt': base64.b64encode(self.salt).decode('utf-8')
+        }
+        with open(self.master_file, 'w') as f:
+            json.dump(data, f)
+        
+        # Set up encryption key
+        self.derive_key(password)
+        self.is_unlocked = True
+
+    # #security #key-management
+    def derive_key(self, password):
+        """Derive encryption key from password using Scrypt"""
+        if not self.salt:
+            self.salt = secrets.token_bytes(16)
+        kdf = Scrypt(
+            salt=self.salt,
+            length=32,
+            n=2**14,
+            r=8,
+            p=1,
         )
         self.key = kdf.derive(password.encode())
 
+    # #security #encryption
     def encrypt_secret(self, secret, name):
         """Encrypt a TOTP secret"""
         if not self.key:
@@ -164,8 +258,12 @@ class SecureStorage:
         # Combine salt, nonce, and ciphertext for storage
         return base64.b64encode(self.salt + nonce + ciphertext).decode('utf-8')
 
-    def decrypt_secret(self, encrypted_data, password, name):
+    # #security #decryption
+    def decrypt_secret(self, encrypted_data, name):
         """Decrypt a TOTP secret"""
+        if not self.is_unlocked or not self.key:
+            return None
+            
         try:
             # Decode the combined data
             data = base64.b64decode(encrypted_data.encode('utf-8'))
@@ -175,18 +273,8 @@ class SecureStorage:
             nonce = data[16:28]
             ciphertext = data[28:]
             
-            # Derive key from password
-            kdf = Scrypt(
-                salt=salt,
-                length=32,
-                n=2**14,
-                r=8,
-                p=1,
-            )
-            key = kdf.derive(password.encode())
-            
             # Decrypt
-            aesgcm = AESGCM(key)
+            aesgcm = AESGCM(self.key)
             plaintext = aesgcm.decrypt(
                 nonce,
                 ciphertext,
@@ -197,7 +285,101 @@ class SecureStorage:
         except Exception:
             return None
 
+    def load_secret(self, name):
+        """Load a secret from storage."""
+        if not self.is_unlocked:
+            return None
+        
+        try:
+            with open(os.path.join(self.storage_path, f"{name}.enc"), 'r') as f:
+                return f.read()
+        except Exception:
+            return None
+
+    def load_all_secrets(self):
+        """Load all secrets from storage."""
+        if not self.is_unlocked:
+            return {}
+        
+        secrets = {}
+        try:
+            for filename in os.listdir(self.storage_path):
+                if filename.endswith('.enc'):
+                    name = filename[:-4]  # Remove .enc extension
+                    secret = self.load_secret(name)
+                    if secret:
+                        secrets[name] = secret
+        except Exception as e:
+            print(f"Error loading secrets: {str(e)}")
+            return {}
+        
+        return secrets
+
+    # #storage #export
+    def export_secrets(self, export_path, password):
+        """Export secrets as an encrypted file."""
+        if not self.verify_master_password(password):
+            print("Master password verification failed")
+            return False
+        
+        if not export_path:
+            print("Export cancelled.")
+            return False
+        
+        # Clean up the export path
+        export_path = export_path.strip('"').strip("'")
+        
+        # If it's a Windows path, convert it to a filename
+        if '\\' in export_path or ':' in export_path:
+            export_path = os.path.basename(export_path)
+        
+        # Ensure the export path has .gpg extension
+        if not export_path.endswith('.gpg'):
+            export_path += '.gpg'
+        
+        # If path is not absolute, put it in the exports directory
+        if not os.path.isabs(export_path):
+            export_path = os.path.join(self.exports_path, export_path)
+        
+        try:
+            # Create a temporary file for the export
+            temp_export = os.path.join(self.exports_path, '.temp_export')
+            
+            # Write secrets to temporary file
+            with open(temp_export, 'w') as f:
+                json.dump(self.load_all_secrets(), f, indent=4)
+            
+            # Set up GPG with custom home directory
+            gpg = gnupg.GPG(gnupghome=self.gnupg_home)
+            
+            # Read the temporary file
+            with open(temp_export, 'rb') as f:
+                # Encrypt the file
+                encrypted_data = gpg.encrypt_file(
+                    f,
+                    recipients=None,
+                    symmetric=True,
+                    passphrase=password,
+                    output=export_path
+                )
+            
+            # Clean up temporary file
+            os.remove(temp_export)
+            
+            if encrypted_data.ok:
+                print(f"Secrets exported to {export_path}")
+                return True
+            else:
+                print(f"GPG encryption failed: {encrypted_data.status}")
+                return False
+            
+        except Exception as e:
+            print(f"Export failed: {str(e)}")
+            return False
+
+# #app #main-class
 class TwoFactorAuth:
+    # #init #setup
     def __init__(self):
         self.secret = None
         self.images_dir = os.getenv('QR_IMAGES_DIR', os.path.join(os.getcwd(), 'images'))
@@ -216,12 +398,14 @@ class TwoFactorAuth:
         print("\nExiting securely...")
         sys.exit(0)
 
+    # #security #cleanup
     def cleanup(self):
         """Secure cleanup of sensitive data"""
         if self.secret:
             self.secret.clear()
             self.secret = None
 
+    # #qr #processing
     def extract_secret_from_qr(self, image_path):
         # Extract secret key from QR code image
         try:
@@ -294,6 +478,7 @@ class TwoFactorAuth:
         except Exception:
             return None
 
+    # #security #validation
     def validate_secret(self, secret):
         # Validate base32 encoded secret key format
         secret = secret.strip().upper()
@@ -302,6 +487,7 @@ class TwoFactorAuth:
             return False
         return True
 
+    # #totp #generation
     def generate_code(self):
         # Generate current TOTP code
         if not self.secret:
@@ -316,6 +502,55 @@ class TwoFactorAuth:
         # Get seconds until next code rotation
         return 30 - (int(time.time()) % 30)
 
+    # #security #authentication
+    def ensure_unlocked(self, purpose="continue"):
+        """Ensure storage is unlocked with master password"""
+        if not self.storage.is_unlocked:
+            if not self.storage.has_master_password():
+                print("\nYou need to set up a master password to", purpose)
+                while True:
+                    password = input("Enter new master password: ")
+                    if not password:
+                        return False
+                    confirm = input("Confirm master password: ")
+                    if password == confirm:
+                        self.storage.set_master_password(password)
+                        return True
+                    print("Passwords don't match. Try again.")
+            else:
+                print("\nStorage is locked. Please enter your master password to", purpose)
+                attempts = 3
+                while attempts > 0:
+                    password = input("Enter master password: ")
+                    if self.storage.verify_master_password(password):
+                        return True
+                    attempts -= 1
+                    if attempts > 0:
+                        print(f"Incorrect password. {attempts} attempts remaining.")
+                return False
+        return True
+
+    def export_secrets(self):
+        """Export secrets to GPG encrypted file"""
+        if not self.ensure_unlocked("export secrets"):
+            return
+            
+        output_path = input("\nEnter path for exported file (will be encrypted): ").strip()
+        if not output_path:
+            print("Export cancelled.")
+            return
+            
+        if not output_path.endswith('.gpg'):
+            output_path += '.gpg'
+            
+        password = input("Enter password for GPG encryption: ")
+        if not password:
+            print("Export cancelled.")
+            return
+            
+        self.storage.export_secrets(output_path, password)
+
+# #utils #screen
 def clear_screen():
     """Clear the terminal screen securely"""
     if platform.system().lower() == "windows":
@@ -323,7 +558,9 @@ def clear_screen():
     else:
         os.system('clear')
 
+# #app #entry-point
 def main():
+    """Main application entry point and UI loop"""
     auth = TwoFactorAuth()
     
     try:
@@ -342,10 +579,11 @@ def main():
             print("2. Enter secret key manually")
             print("3. Save current secret")
             print("4. Load saved secret")
-            print("5. Clear screen")
-            print("6. Exit")
+            print("5. Export secrets")
+            print("6. Clear screen")
+            print("7. Exit")
             
-            choice = input("\nEnter your choice (1-6): ")
+            choice = input("\nEnter your choice (1-7): ")
             
             if choice == '1':
                 # Auto-cleanup before new secret
@@ -357,6 +595,11 @@ def main():
                 
                 if error:
                     print(f"Error: {error}")
+                    continue
+                    
+                # Require master password before showing codes
+                if not auth.ensure_unlocked("view 2FA codes"):
+                    auth.cleanup()
                     continue
                     
                 auth.secret = secret
@@ -372,6 +615,10 @@ def main():
                     print("Error: Invalid secret key format. Must be base32 encoded.")
                     continue
                     
+                # Require master password before showing codes
+                if not auth.ensure_unlocked("view 2FA codes"):
+                    continue
+                    
                 auth.secret = SecureString(secret_input)
                 print("Secret key successfully set!")
 
@@ -380,18 +627,15 @@ def main():
                     print("No secret currently set!")
                     continue
                 
+                if not auth.ensure_unlocked("save the secret"):
+                    continue
+                
                 name = input("Enter a name for this secret: ").strip()
                 if not name:
                     print("Name cannot be empty!")
                     continue
                 
-                password = input("Enter encryption password: ")
-                if not password:
-                    print("Password cannot be empty!")
-                    continue
-                
                 try:
-                    auth.storage.derive_key(password)
                     with SecureString(auth.secret.get()) as temp_secret:
                         encrypted = auth.storage.encrypt_secret(temp_secret.get(), name)
                     
@@ -405,6 +649,9 @@ def main():
                     continue
 
             elif choice == '4':
+                if not auth.ensure_unlocked("load saved secrets"):
+                    continue
+                    
                 name = input("Enter the name of the secret to load: ").strip()
                 if not name:
                     print("Name cannot be empty!")
@@ -415,18 +662,13 @@ def main():
                     print(f"No saved secret found with name '{name}'")
                     continue
                 
-                password = input("Enter decryption password: ")
-                if not password:
-                    print("Password cannot be empty!")
-                    continue
-                
                 try:
                     with open(file_path, "r") as f:
                         encrypted = f.read()
                     
-                    decrypted = auth.storage.decrypt_secret(encrypted, password, name)
+                    decrypted = auth.storage.decrypt_secret(encrypted, name)
                     if not decrypted:
-                        print("Failed to decrypt secret (wrong password?)")
+                        print("Failed to decrypt secret")
                         continue
                     
                     # Auto-cleanup before new secret
@@ -438,12 +680,19 @@ def main():
                 except Exception as e:
                     print("Error loading secret!")
                     continue
-                
+
             elif choice == '5':
-                clear_screen()
+                try:
+                    auth.export_secrets()
+                except Exception as e:
+                    print(f"Export failed: {str(e)}")
                 continue
                 
             elif choice == '6':
+                clear_screen()
+                continue
+                
+            elif choice == '7':
                 auth.cleanup()
                 print("Goodbye!")
                 sys.exit(0)
