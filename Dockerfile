@@ -1,50 +1,33 @@
-# Use Python 3.8 slim base image
-FROM python:3.8-slim-buster
-
-# Create non-root user first
-RUN useradd -u 1000 -m truefa
-
-# Set up directories with correct permissions
-RUN mkdir -p /app/images /app/.truefa /home/truefa/Downloads && \
-    chown -R truefa:truefa /app && \
-    chmod 755 /app && \
-    chmod 755 /app/images && \
-    chmod 700 /app/.truefa && \
-    chown -R truefa:truefa /home/truefa/Downloads && \
-    chmod 755 /home/truefa/Downloads
-
-WORKDIR /app
+FROM python:3.10-slim
 
 # Install system dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
     libzbar0 \
-    zbar-tools \
-    libjpeg62-turbo \
     gnupg2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install requirements as root for better security
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
-
-# Copy application code
-COPY src/ ./src/
-
-# Set ownership of all files
-RUN chown -R truefa:truefa /app
-
-# Create volume mount points
-VOLUME ["/app/images", "/app/.truefa", "/home/truefa/Downloads"]
-
-# Switch to non-root user
+# Create non-root user
+RUN useradd -m -s /bin/bash truefa
 USER truefa
+WORKDIR /home/truefa/app
 
-# Set environment
-ENV PYTHONUNBUFFERED=1 \
-    QR_IMAGES_DIR=/app/images \
-    TRUEFA_STORAGE_PATH=/app/.truefa \
-    PYTHONDONTWRITEBYTECODE=1
+# Copy application files
+COPY --chown=truefa:truefa . .
 
-CMD ["python", "src/truefa.py"] 
+# Create necessary directories
+RUN mkdir -p images .truefa/exports
+
+# Create README.md if it doesn't exist
+RUN if [ ! -f README.md ]; then echo "# TrueFA\n\nA secure two-factor authentication code generator." > README.md; fi
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -e .
+
+# Set environment variables
+ENV QR_IMAGES_DIR=/home/truefa/app/images
+ENV HOME=/home/truefa
+ENV PYTHONPATH=/home/truefa/app
+
+# Run the application
+CMD ["python", "-m", "src.main"] 
