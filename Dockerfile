@@ -1,11 +1,14 @@
 # Use Python 3.8 slim base image
 FROM python:3.8-slim-buster
 
-# Create non-root user and set up directories
-RUN useradd -m truefa && \
-    mkdir -p /app/images /app/.truefa && \
+# Create non-root user first
+RUN useradd -u 1000 -m truefa
+
+# Set up directories with correct permissions
+RUN mkdir -p /app/images /app/.truefa && \
     chown -R truefa:truefa /app && \
-    chmod 755 /app/images && \
+    chmod 755 /app && \
+    chmod 777 /app/images && \
     chmod 700 /app/.truefa
 
 WORKDIR /app
