@@ -31,14 +31,58 @@ New-Item -ItemType Directory -Force -Path images, .truefa
 mkdir -p images .truefa
 ```
 
-3. Build and run with Docker Compose:
+3. Build and run with Docker:
 ```bash
-docker-compose up --build
+# Build the Docker image
+docker build -t truefa .
+
+# Run the container
+docker run -it --name truefa \
+  -v "${PWD}/images:/app/images" \
+  -v "${PWD}/.truefa:/app/.truefa" \
+  -v "$HOME/Downloads:/home/truefa/Downloads" \
+  truefa
+
+# On Windows PowerShell, use:
+docker run -it --name truefa `
+  -v "${PWD}\images:/app/images" `
+  -v "${PWD}\.truefa:/app/.truefa" `
+  -v "$HOME\Downloads:/home/truefa/Downloads" `
+  truefa
+
+# For subsequent runs, just use:
+docker start -ai truefa
 ```
 
 The application will be available in your terminal. Place your QR code images in the `images` directory to scan them.
 
 ### Option 2: Direct Installation
+
+#### Windows Prerequisites
+
+1. Install ZBar:
+   - Download the [ZBar Windows Binaries](https://sourceforge.net/projects/zbar/files/zbar/0.10/zbar-0.10-setup.exe/download)
+   - Run the installer
+   - Add the installation directory (usually `C:\Program Files (x86)\ZBar`) to your system PATH
+
+2. Install GPG:
+   - Download [GPG4Win](https://www.gpg4win.org/download.html)
+   - Run the installer
+   - Add the installation directory to your system PATH
+
+#### Linux/macOS Prerequisites
+
+- For Ubuntu/Debian:
+  ```bash
+  sudo apt-get install libzbar0 zbar-tools gpg
+  ```
+
+- For macOS:
+  ```bash
+  brew install zbar gpg
+  ```
+
+#### Installation Steps
 
 1. Clone the repository:
 ```bash
@@ -63,7 +107,7 @@ pip install -e .
 1. Place your QR code images in the `images` directory
 2. Start the container:
 ```bash
-docker-compose up
+docker start -ai truefa
 ```
 3. Use the interactive menu in your terminal
 4. Exported files will appear in your Downloads folder
@@ -101,7 +145,6 @@ truefa
 
 ### For Docker Installation
 - Docker
-- Docker Compose
 
 ### For Direct Installation
 - Python 3.8 or higher
@@ -137,8 +180,7 @@ truefa/
 │   └── main.py          # Main application entry point
 ├── images/              # Directory for QR code images
 ├── .truefa/             # Secure storage directory
-├── Dockerfile           # Docker configuration
-├── docker-compose.yml   # Docker Compose configuration
+├── Dockerfile          # Docker configuration
 ├── requirements.txt     # Python dependencies
 └── setup.py            # Package installation configuration
 ```
