@@ -144,7 +144,7 @@ def main():
                     print("\nNo secrets available to export.")
                     continue
                                 
-                output_path = input("\nEnter path for exported file (will be encrypted): ").strip()
+                output_path = input("\nEnter name for exported file (will be encrypted): ").strip()
                 if not output_path:
                     print("Export cancelled.")
                     continue
