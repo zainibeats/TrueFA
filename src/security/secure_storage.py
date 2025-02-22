@@ -269,7 +269,7 @@ class SecureStorage:
                 # Clean up temporary files
                 os.remove(temp_export)                
                 if result.returncode == 0:
-                    print(f"Secrets exported to {export_path}")
+                    print(f"Secrets exported to your downloads folder")
                     return True
                 else:
                     print(f"GPG encryption failed: {result.stderr}")
