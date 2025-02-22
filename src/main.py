@@ -166,7 +166,6 @@ def main():
                     continue
                 
                 if auth.storage.export_secrets(output_path, export_password):
-                    print(f"\nSecrets have been exported to your Downloads folder")
                     print("You can decrypt this file using: gpg -d " + output_path)
                 else:
                     print("Failed to export secrets")
