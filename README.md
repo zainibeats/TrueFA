@@ -1,6 +1,6 @@
 # TrueFA
 
-A secure two-factor authentication code generator with support for QR code scanning and encrypted storage.
+A secure two-factor authentication code generator with support for QR code scanning and encrypted storage. This tools is designed to generate TOPT codes from QR code images or screenshots
 
 ## Features
 
@@ -45,7 +45,7 @@ docker run -it --name truefa `
 docker start -ai truefa
 ```
 
-The application will be available in your terminal. Place your QR code images in the `images` directory to scan them.
+The application will be available in your terminal. Place your QR code images in the `images` directory to scan them
 
 ### Option 2: Direct Installation
 
