@@ -246,19 +246,26 @@ class SecureStorage:
             
             # Use GPG for symmetric encryption only (no keys)
             try:
-                # Create a pipe for GPG password
+                # Ensure the exports directory exists with correct permissions
+                os.makedirs(self.exports_path, mode=0o700, exist_ok=True)
+                
+                # Remove any existing temporary files
+                if os.path.exists(temp_export):
+                    os.remove(temp_export)
+                
+                # Write secrets to temporary file
+                with open(temp_export, 'w') as f:
+                    json.dump(secrets, f, indent=4)
+                
+                # Set up GPG environment
                 gpg_env = os.environ.copy()
                 gpg_env['GNUPGHOME'] = self.exports_path
-                
-                # Create a pipe for GPG password
-                pass_file = os.path.join(self.exports_path, '.gpg_pass')
-                with open(pass_file, 'w') as f:
-                    f.write(export_password + '\n')
                 
                 # Use process substitution to provide password
                 result = subprocess.run([
                     'gpg',
                     '--batch',
+                    '--yes',  # Automatically overwrite output file if it exists
                     '--passphrase-fd', '0',
                     '--symmetric',
                     '--cipher-algo', 'AES256',
@@ -267,12 +274,14 @@ class SecureStorage:
                 ], input=export_password.encode(), env=gpg_env, capture_output=True)
                 
                 # Clean up temporary files
-                os.remove(temp_export)                
+                if os.path.exists(temp_export):
+                    os.remove(temp_export)
+                
                 if result.returncode == 0:
-                    print(f"Secrets exported to your downloads folder")
+                    print(f"\nSecrets have been exported to your downloads folder")
                     return True
                 else:
-                    print(f"GPG encryption failed: {result.stderr}")
+                    print(f"GPG encryption failed: {result.stderr.decode()}")
                     return False
                 
             except subprocess.CalledProcessError as e:
