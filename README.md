@@ -22,16 +22,7 @@ git clone https://github.com/zainibeats/truefa.git
 cd truefa
 ```
 
-2. Create required directories:
-```bash
-# Windows PowerShell:
-New-Item -ItemType Directory -Force -Path images, .truefa
-
-# Linux/macOS:
-mkdir -p images .truefa
-```
-
-3. Build and run with Docker:
+2. Build and run with Docker:
 ```bash
 # Build the Docker image
 docker build -t truefa .
@@ -110,7 +101,7 @@ pip install -e .
 docker start -ai truefa
 ```
 3. Use the interactive menu in your terminal
-4. Exported files will appear in your Downloads folder
+4. When exporting secrets, they will be saved to your system's Downloads folder
 5. To stop the application, press Ctrl+C
 
 ### Running Locally
@@ -125,13 +116,13 @@ truefa
    - Enter TOTP secrets manually
    - Save secrets securely
    - Load saved secrets
-   - Export secrets
+   - Export secrets (will be saved to your Downloads folder)
 
 ## Directory Structure
 
 - `images/` - Place your QR code images here
 - `.truefa/` - Secure storage for encrypted secrets
-- `Downloads/` - Location for exported secrets
+- Your system's Downloads folder - Location for exported secrets
 
 ## Security Features
 
