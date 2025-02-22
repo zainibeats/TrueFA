@@ -181,8 +181,7 @@ truefa/
 ├── images/              # Directory for QR code images
 ├── .truefa/             # Secure storage directory
 ├── Dockerfile          # Docker configuration
-├── requirements.txt     # Python dependencies
-└── setup.py            # Package installation configuration
+└── requirements.txt     # Python dependencies
 ```
 
 ## License
