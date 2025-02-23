@@ -2,6 +2,14 @@ import React from 'react';
 import { Trash2 } from 'lucide-react';
 import type { AuthAccount } from '../lib/types';
 
+/**
+ * Props interface for the AccountList component
+ * @interface AccountListProps
+ * @property {AuthAccount[]} accounts - Array of authentication accounts to display
+ * @property {string | undefined} selectedId - ID of the currently selected account
+ * @property {function} onSelect - Callback function when an account is selected
+ * @property {function} onDelete - Callback function when an account is deleted
+ */
 interface AccountListProps {
   accounts: AuthAccount[];
   selectedId: string | undefined;
@@ -9,6 +17,20 @@ interface AccountListProps {
   onDelete: (id: string) => void;
 }
 
+/**
+ * Renders a list of authentication accounts with selection and deletion capabilities
+ * 
+ * Features:
+ * - Displays a message when no accounts are present
+ * - Shows account issuer and name for each entry
+ * - Highlights selected account
+ * - Provides delete functionality with hover state
+ * - Responsive design with smooth transitions
+ * 
+ * @component
+ * @param {AccountListProps} props - Component properties
+ * @returns {JSX.Element} Rendered account list or empty state message
+ */
 export function AccountList({ accounts, selectedId, onSelect, onDelete }: AccountListProps) {
   if (accounts.length === 0) {
     return (

@@ -3,12 +3,33 @@ import { RefreshCw, Copy, Check, Save, Lock } from 'lucide-react';
 import { TOTPManager } from '../lib/crypto';
 import type { AuthAccount } from '../lib/types';
 
+/**
+ * Props interface for the TokenDisplay component
+ * @interface TokenDisplayProps
+ * @property {AuthAccount} account - The authentication account to display tokens for
+ * @property {function} [onSave] - Optional callback function when account details are saved
+ * @property {boolean} [isSaved=false] - Whether the account is saved in storage
+ */
 interface TokenDisplayProps {
   account: AuthAccount;
   onSave?: (account: AuthAccount) => void;
   isSaved?: boolean;
 }
 
+/**
+ * Component for displaying and managing TOTP tokens for an authentication account
+ * 
+ * Features:
+ * - Real-time token generation and display
+ * - Countdown timer for token validity
+ * - Copy to clipboard functionality
+ * - Account name editing and saving
+ * - Responsive design with visual feedback
+ * 
+ * @component
+ * @param {TokenDisplayProps} props - Component properties
+ * @returns {JSX.Element} Rendered token display
+ */
 export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayProps) {
   const [token, setToken] = useState('');
   const [remainingTime, setRemainingTime] = useState(30);
@@ -16,6 +37,11 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [accountName, setAccountName] = useState(account.name);
 
+  /**
+   * Effect hook for managing token generation and countdown timer
+   * Sets up intervals for updating token and remaining time
+   * Cleans up intervals on unmount or when secret changes
+   */
   useEffect(() => {
     let mounted = true;
 
@@ -47,6 +73,11 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
     };
   }, [account.secret]);
 
+  /**
+   * Handles copying the current token to clipboard
+   * Shows visual feedback when copied
+   * @async
+   */
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(token);
@@ -58,6 +89,10 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
     }
   };
 
+  /**
+   * Handles saving updated account details
+   * Updates account name and triggers onSave callback
+   */
   const handleSave = () => {
     if (!onSave) return;
     
