@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Copy, Check, Save, Lock } from 'lucide-react';
+import { RefreshCw, Copy, Check, Save, Lock, Eye, EyeOff } from 'lucide-react';
 import { TOTPManager } from '../lib/crypto';
 import type { AuthAccount } from '../lib/types';
 
@@ -36,6 +36,7 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
   const [copied, setCopied] = useState(false);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
   const [accountName, setAccountName] = useState(account.name);
+  const [showCode, setShowCode] = useState(true);
 
   /**
    * Effect hook for managing token generation and countdown timer
@@ -104,8 +105,9 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
     setShowSavePrompt(false);
   };
 
-  // Split token into groups of 3 for better readability
-  const formattedToken = token.match(/.{1,3}/g)?.join(' ') || '';
+  // Format token into two groups of 3 digits
+  const formattedToken = token ? `${token.slice(0, 3)} ${token.slice(3)}` : '';
+  const maskedToken = token ? `••• •••` : '';
 
   return (
     <>
@@ -118,20 +120,33 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
 
           <div className="flex flex-col items-center space-y-6 mb-8">
             <div className="relative">
-              <div className="text-7xl font-mono tracking-[0.5em] text-truefa-dark bg-truefa-light py-8 px-12 rounded-xl shadow-inner">
-                {formattedToken}
+              <div className="text-5xl font-mono tracking-[0.25em] text-truefa-dark bg-truefa-light py-6 px-8 rounded-xl shadow-inner min-w-[280px] text-center">
+                {showCode ? formattedToken : maskedToken}
               </div>
-              <button
-                onClick={handleCopy}
-                className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 text-truefa-gray hover:text-truefa-dark focus:outline-none"
-                title="Copy code"
-              >
-                {copied ? (
-                  <Check className="w-6 h-6 text-green-500" />
-                ) : (
-                  <Copy className="w-6 h-6" />
-                )}
-              </button>
+              <div className="absolute -right-12 top-1/2 -translate-y-1/2 flex flex-col gap-2">
+                <button
+                  onClick={() => setShowCode(!showCode)}
+                  className="p-2 text-truefa-gray hover:text-truefa-dark focus:outline-none"
+                  title={showCode ? "Hide code" : "Show code"}
+                >
+                  {showCode ? (
+                    <EyeOff className="w-6 h-6" />
+                  ) : (
+                    <Eye className="w-6 h-6" />
+                  )}
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="p-2 text-truefa-gray hover:text-truefa-dark focus:outline-none"
+                  title="Copy code"
+                >
+                  {copied ? (
+                    <Check className="w-6 h-6 text-green-500" />
+                  ) : (
+                    <Copy className="w-6 h-6" />
+                  )}
+                </button>
+              </div>
             </div>
             <div className="flex items-center space-x-3 text-lg">
               <RefreshCw className={`w-6 h-6 ${remainingTime <= 5 ? 'text-red-500' : 'text-truefa-gray'}`} />
