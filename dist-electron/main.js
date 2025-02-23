@@ -1,3 +1,4 @@
+"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -34,11 +35,13 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
 };
-var _this = this;
+Object.defineProperty(exports, "__esModule", { value: true });
 var _a = require('electron'), app = _a.app, BrowserWindow = _a.BrowserWindow, ipcMain = _a.ipcMain;
 var path = require('path');
 var fs = require('fs/promises');
 var nodeCrypto = require('crypto');
+// Suppress DevTools warnings
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 var mainWindow = null;
 var ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 var SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
@@ -49,17 +52,26 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
+        minWidth: 800,
+        minHeight: 600,
+        icon: path.join(__dirname, '../assets/truefa1.png'),
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         },
+        backgroundColor: '#f8fafc', // Light gray background
+        show: false, // Don't show until ready
     });
     if (mainWindow) {
         // Load the app
         mainWindow.loadURL(isDev
             ? 'http://localhost:5173' // Vite dev server URL
-            : "file://".concat(path.join(__dirname, '../dist/index.html')));
+            : "file://".concat(path.join(__dirname, '..', 'dist', 'index.html')));
+        // Show window when ready
+        mainWindow.once('ready-to-show', function () {
+            mainWindow === null || mainWindow === void 0 ? void 0 : mainWindow.show();
+        });
         // Open the DevTools in development.
         if (isDev) {
             mainWindow.webContents.openDevTools();
@@ -103,7 +115,7 @@ function decryptData(encryptedJson, password) {
     });
 }
 // IPC Handlers
-ipcMain.handle('save-accounts', function (_1, _a) { return __awaiter(_this, [_1, _a], void 0, function (_, _b) {
+ipcMain.handle('save-accounts', function (_1, _a) { return __awaiter(void 0, [_1, _a], void 0, function (_, _b) {
     var encrypted, error_1;
     var accounts = _b.accounts, password = _b.password;
     return __generator(this, function (_c) {
@@ -125,7 +137,7 @@ ipcMain.handle('save-accounts', function (_1, _a) { return __awaiter(_this, [_1,
         }
     });
 }); });
-ipcMain.handle('load-accounts', function (_, password) { return __awaiter(_this, void 0, void 0, function () {
+ipcMain.handle('load-accounts', function (_, password) { return __awaiter(void 0, void 0, void 0, function () {
     var error_2, fileContents, encrypted, decrypted, error_3;
     return __generator(this, function (_a) {
         switch (_a.label) {
