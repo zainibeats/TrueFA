@@ -21,15 +21,20 @@ export default defineConfig({
         'path'
       ],
     },
+    commonjsOptions: {
+      include: [/node_modules/],
+      transformMixedEsModules: true
+    }
   },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
+      'buffer': 'buffer/'
     },
   },
   optimizeDeps: {
-    include: ['react', 'react-dom'],
-    exclude: ['electron', 'electron-is-dev'],
+    include: ['react', 'react-dom', 'jsqr', 'buffer'],
+    exclude: ['electron', 'electron-is-dev']
   },
   server: {
     port: 5173,
