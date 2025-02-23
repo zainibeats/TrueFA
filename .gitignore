@@ -7,13 +7,20 @@ node_modules
 dist
 dist-electron
 build
+dist-ssr
+release
 
 # Testing
 coverage
+*.local
+qrtest.png
+.master
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
 .idea
 .DS_Store
 *.suo
@@ -23,30 +30,27 @@ coverage
 *.sw?
 
 # Debug logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# Local env files
-.env*.local
+# Environment files
 .env
+.env*.local
+.env.development
+.env.test
+.env.production
 
-# Electron-builder output
-release
+# OS-specific files
+Thumbs.db
+.DS_Store
+Desktop.ini
 
-# Logs
-logs
-*.log
-
-dist-ssr
-*.local
-
-# Test files
-qrtest.png
-.master
-
-
+# Application specific
+*.enc
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
