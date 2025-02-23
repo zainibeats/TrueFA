@@ -45,8 +45,7 @@ dist-ssr
 # Test files
 qrtest.png
 .master
-dist-electron/
-node_modules/
+
 
 
 # PyInstaller
