@@ -89,7 +89,7 @@ TrueFA is a secure, offline Two-Factor Authentication (2FA) application built wi
 
 ```bash
 # Clone the repository
-git clone [your-repo-url]
+git clone https://www.github.com/zainibeats/truefa
 cd truefa
 
 # Install dependencies
@@ -239,4 +239,4 @@ To create a production build:
 
 ## License
 
-[Your License Here]
+MIT
