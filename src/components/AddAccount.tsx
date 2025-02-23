@@ -24,11 +24,14 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
     if (!file) return;
 
     try {
+      console.log('Processing file:', file.name);
       // Create a data URL from the file
       const reader = new FileReader();
       reader.onload = async (event) => {
+        console.log('File loaded successfully');
         const img = new Image();
         img.onload = async () => {
+          console.log('Image loaded:', img.width, 'x', img.height);
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
           canvas.height = img.height;
@@ -41,15 +44,18 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
 
           ctx.drawImage(img, 0, 0);
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          console.log('Image data extracted:', imageData.width, 'x', imageData.height);
           
           try {
             const qrData = await decodeQRFromImage(imageData);
+            console.log('QR Data:', qrData);
             if (!qrData) {
               setError('No valid QR code found');
               return;
             }
 
             const otpData = parseOTPAuthURL(qrData);
+            console.log('OTP Data:', otpData);
             if (!otpData) {
               setError('Invalid OTP Auth URL');
               return;
@@ -62,9 +68,11 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
               secret: otpData.secret,
               createdAt: Date.now()
             };
+            console.log('Created new account:', newAccount);
 
             onAdd(newAccount);
           } catch (err) {
+            console.error('QR processing error:', err);
             setError('Failed to read QR code');
           }
         };
@@ -72,6 +80,7 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
       };
       reader.readAsDataURL(file);
     } catch (err) {
+      console.error('File processing error:', err);
       setError('Failed to read image file');
     }
   };
