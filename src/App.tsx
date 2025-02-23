@@ -189,13 +189,13 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-secondary-50">
+    <div className="min-h-screen bg-truefa-light">
       <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-10">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">TrueFA</h1>
+          <h1 className="text-2xl font-bold text-truefa-dark">TrueFA</h1>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="flex items-center space-x-2 px-4 py-2 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
           >
             <Plus className="w-5 h-5" />
             <span>Add Account</span>
@@ -233,12 +233,12 @@ function App() {
               />
             ) : (
               <div className="h-[calc(100vh-8rem)] flex items-center justify-center p-8 bg-white rounded-lg shadow-lg">
-                <div className="text-center text-gray-500">
-                  <Shield className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <div className="text-center text-truefa-gray">
+                  <Shield className="w-16 h-16 mx-auto mb-4 text-truefa-blue" />
                   <p className="text-lg">Scan a QR code to view TOTP codes</p>
                   <button
                     onClick={() => setShowAddModal(true)}
-                    className="mt-4 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="mt-4 py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
                   >
                     Add Account
                   </button>
@@ -257,11 +257,11 @@ function App() {
       )}
 
       {showPasswordPrompt && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-truefa-dark bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
             <div className="flex items-center space-x-2 mb-4">
-              <Lock className="w-5 h-5 text-blue-600" />
-              <h2 className="text-xl font-semibold">
+              <Lock className="w-5 h-5 text-truefa-blue" />
+              <h2 className="text-xl font-semibold text-truefa-dark">
                 {tempAccountToSave ? 'Create Master Password' : 'Enter Master Password'}
               </h2>
             </div>
@@ -274,28 +274,28 @@ function App() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-truefa-gray mb-1">
                   Master Password
                 </label>
                 <input
                   type="password"
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
                   placeholder={tempAccountToSave ? "Create master password" : "Enter your master password"}
                 />
               </div>
 
               {tempAccountToSave && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-truefa-gray mb-1">
                     Confirm Password
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
                     placeholder="Confirm master password"
                   />
                 </div>
@@ -304,7 +304,7 @@ function App() {
               <div className="flex space-x-3">
                 <button
                   onClick={handlePasswordSubmit}
-                  className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                  className="flex-1 py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
                 >
                   {tempAccountToSave ? 'Create Password' : 'Unlock'}
                 </button>
@@ -316,7 +316,7 @@ function App() {
                     setError(null);
                     setTempAccountToSave(null);
                   }}
-                  className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  className="flex-1 py-2 px-4 bg-truefa-light text-truefa-gray rounded-lg hover:bg-truefa-sky focus:outline-none focus:ring-2 focus:ring-truefa-gray focus:ring-offset-2"
                 >
                   Cancel
                 </button>

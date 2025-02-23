@@ -35,8 +35,14 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 var _this = this;
+// Import required Electron modules for IPC and context isolation
 var _a = require('electron'), contextBridge = _a.contextBridge, ipcRenderer = _a.ipcRenderer;
-// Helper to preserve error types
+/**
+ * Helper function to preserve error types across IPC boundaries
+ * Ensures that error names, messages, and custom properties are maintained
+ * @param error - The error to preserve
+ * @returns A new Error object with preserved properties
+ */
 function preserveError(error) {
     console.log('Preserving error:', error);
     console.log('Error type:', typeof error);
@@ -54,9 +60,15 @@ function preserveError(error) {
     }
     return new Error(String(error));
 }
-// Expose protected methods that allow the renderer process to use
-// the ipcRenderer without exposing the entire object
+// Expose a limited set of Electron functionality to the renderer process
+// This maintains security through context isolation while allowing necessary IPC
 contextBridge.exposeInMainWorld('electronAPI', {
+    /**
+     * Save accounts to encrypted storage
+     * @param accounts - Array of accounts to save
+     * @param password - Master password for encryption
+     * @returns Promise<boolean> indicating success
+     */
     saveAccounts: function (accounts, password) { return __awaiter(_this, void 0, void 0, function () {
         var error_1;
         return __generator(this, function (_a) {
@@ -73,6 +85,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
             }
         });
     }); },
+    /**
+     * Load accounts from encrypted storage
+     * @param password - Master password for decryption
+     * @returns Promise<Array> of decrypted accounts
+     */
     loadAccounts: function (password) { return __awaiter(_this, void 0, void 0, function () {
         var error_2;
         return __generator(this, function (_a) {
@@ -89,6 +106,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
             }
         });
     }); },
+    /**
+     * Start the security cleanup timer
+     * Triggers cleanup after period of inactivity
+     */
     startCleanupTimer: function () { return __awaiter(_this, void 0, void 0, function () {
         var error_3;
         return __generator(this, function (_a) {
@@ -105,6 +126,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
             }
         });
     }); },
+    /**
+     * Register cleanup callback for security timeout
+     * @param callback - Function to call when cleanup is needed
+     * @returns Cleanup function to remove the listener
+     */
     onCleanupNeeded: function (callback) {
         ipcRenderer.on('cleanup-needed', function () { return callback(); });
         return function () {
