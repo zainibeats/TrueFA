@@ -162,6 +162,34 @@ truefa/
 - Master password protection for saved accounts
 - Automatic cleanup of sensitive data
 
+### Security Implementation Details
+
+- **Encryption**: AES-256-GCM (Galois/Counter Mode) authenticated encryption
+- **Key Derivation**: PBKDF2 with 100,000 iterations and SHA-256
+- **Salt & IV**: Unique random values for each encryption
+- **Data Integrity**: Authentication tags to verify data hasn't been tampered with
+- **Secure Storage**: All sensitive data is encrypted before being saved to disk
+- **Memory Protection**: Automatic cleanup of sensitive data after 5 minutes of inactivity
+
+### Security Best Practices
+
+1. **Master Password**
+   - Use a strong password (12+ characters)
+   - Include a mix of uppercase, lowercase, numbers, and symbols
+   - Never share your master password
+   - Don't reuse passwords from other services
+
+2. **Application Usage**
+   - Close the application when not in use
+   - Use the "Quit" option from the File menu to ensure complete closure
+   - Keep your operating system and the application updated
+   - Don't modify the application or use unofficial versions
+
+3. **Backup & Recovery**
+   - Keep your master password in a secure location
+   - There is no password recovery - if you forget your master password, you'll need to set up your accounts again
+   - Backup your 2FA recovery codes from your service providers separately
+
 ## Building for Production
 
 To create a production build:
