@@ -85,29 +85,51 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
     }
   };
 
-  const handleManualAdd = () => {
+  const handleManualAdd = async () => {
     if (!manualSecret || !manualIssuer) {
       setError('Secret and issuer are required');
       return;
     }
 
     try {
-      // Validate the secret
-      if (!TOTPManager.validateSecret(manualSecret)) {
-        setError('Invalid secret key format');
+      // Clean up the secret (remove spaces and convert to uppercase)
+      const cleanSecret = manualSecret.replace(/\s/g, '').toUpperCase();
+      
+      // Validate the secret format
+      if (!TOTPManager.validateSecret(cleanSecret)) {
+        setError('Invalid secret key format. Must be a valid Base32 string (A-Z, 2-7)');
+        return;
+      }
+
+      // Test if the secret actually generates a valid TOTP
+      try {
+        const testToken = await TOTPManager.generateToken(cleanSecret);
+        if (!testToken || testToken.length !== 6) {
+          setError('Invalid secret: failed to generate TOTP code');
+          return;
+        }
+      } catch (err) {
+        setError('Invalid secret: failed to generate TOTP code');
+        return;
+      }
+
+      // Validate issuer
+      if (manualIssuer.trim().length < 2) {
+        setError('Service name must be at least 2 characters long');
         return;
       }
 
       const newAccount: AuthAccount = {
         id: crypto.randomUUID(),
-        name: manualAccount || 'Unknown',
-        issuer: manualIssuer,
-        secret: manualSecret,
+        name: manualAccount.trim() || 'Unknown',
+        issuer: manualIssuer.trim(),
+        secret: cleanSecret,
         createdAt: Date.now()
       };
 
       onAdd(newAccount);
     } catch (err) {
+      console.error('Failed to add account:', err);
       setError('Failed to add account');
     }
   };
