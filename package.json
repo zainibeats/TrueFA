@@ -1,0 +1,67 @@
+{
+  "name": "truefa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Secure offline TOTP authenticator",
+  "author": {
+    "name": "Cheyenne Zaini"
+  },
+  "main": "./dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"vite\" \"npm run electron:dev\"",
+    "electron:dev": "tsc electron/main.ts electron/preload.ts --outDir dist-electron && cross-env NODE_ENV=development electron .",
+    "preclean": "powershell -Command \"Stop-Process -Name TrueFA -ErrorAction SilentlyContinue; exit 0\"",
+    "clean": "rimraf dist dist-electron build || powershell -Command \"Remove-Item -Recurse -Force dist, dist-electron, build -ErrorAction SilentlyContinue\"",
+    "build": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false",
+    "build:quick": "electron-builder --win --config.asar=false --dir",
+    "build:dev": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false --dir",
+    "start:exe": "cd build/win-unpacked && .\\TrueFA.exe",
+    "rebuild": "npm run build && npm run start:exe",
+    "rebuild:dev": "npm run build:dev && npm run start:exe"
+  },
+  "build": {
+    "appId": "com.truefa.app",
+    "productName": "TrueFA",
+    "directories": {
+      "output": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "target": []
+    },
+    "win": {
+      "target": "dir",
+      "icon": "assets/truefa1.ico"
+    },
+    "linux": {
+      "target": []
+    }
+  },
+  "dependencies": {
+    "buffer": "^6.0.3",
+    "jsqr": "^1.4.0",
+    "lucide-react": "^0.330.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.17",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.4.35",
+    "rimraf": "^6.0.1",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.2.2",
+    "vite": "^5.1.0"
+  }
+}
