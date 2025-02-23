@@ -13,7 +13,7 @@ release
 # Testing
 coverage
 *.local
-qrtest.png
+test-files/
 .master
 
 # Editor directories and files
