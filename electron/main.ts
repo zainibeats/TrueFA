@@ -8,7 +8,7 @@ const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
 
 // Check if we're in development mode
-const isDev = process.env.NODE_ENV === 'development' || process.defaultApp;
+const isDev = process.env.NODE_ENV === 'development';
 
 function createWindow() {
   // Create the browser window.
@@ -95,11 +95,31 @@ ipcMain.handle('save-accounts', async (_: Electron.IpcMainInvokeEvent, { account
 
 ipcMain.handle('load-accounts', async (_: Electron.IpcMainInvokeEvent, password: string) => {
   try {
+    // Check if the secrets file exists
+    try {
+      await fs.access(SECRETS_FILE);
+    } catch (error) {
+      // File doesn't exist, return empty array for first use
+      return [];
+    }
+
+    // If we have a file but no password, and it's not first use, throw error
+    if (!password) {
+      const fileContents = await fs.readFile(SECRETS_FILE, 'utf8');
+      if (fileContents) {
+        throw new Error('Password required');
+      }
+    }
+
     const encrypted = await fs.readFile(SECRETS_FILE, 'utf8');
     const decrypted = await decryptData(encrypted, password);
     return JSON.parse(decrypted);
   } catch (error) {
-    if ((error as { code?: string }).code === 'ENOENT') {
+    if ((error as Error).message === 'Password required') {
+      throw error;
+    }
+    // For any other error during first use, return empty array
+    if (!password) {
       return [];
     }
     console.error('Failed to load accounts:', error);

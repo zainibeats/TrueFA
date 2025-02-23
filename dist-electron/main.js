@@ -43,7 +43,7 @@ var mainWindow = null;
 var ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 var SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
 // Check if we're in development mode
-var isDev = process.env.NODE_ENV === 'development' || process.defaultApp;
+var isDev = process.env.NODE_ENV === 'development';
 function createWindow() {
     // Create the browser window.
     mainWindow = new BrowserWindow({
@@ -126,26 +126,50 @@ ipcMain.handle('save-accounts', function (_1, _a) { return __awaiter(_this, [_1,
     });
 }); });
 ipcMain.handle('load-accounts', function (_, password) { return __awaiter(_this, void 0, void 0, function () {
-    var encrypted, decrypted, error_2;
+    var error_2, fileContents, encrypted, decrypted, error_3;
     return __generator(this, function (_a) {
         switch (_a.label) {
             case 0:
-                _a.trys.push([0, 3, , 4]);
-                return [4 /*yield*/, fs.readFile(SECRETS_FILE, 'utf8')];
+                _a.trys.push([0, 9, , 10]);
+                _a.label = 1;
             case 1:
-                encrypted = _a.sent();
-                return [4 /*yield*/, decryptData(encrypted, password)];
+                _a.trys.push([1, 3, , 4]);
+                return [4 /*yield*/, fs.access(SECRETS_FILE)];
             case 2:
-                decrypted = _a.sent();
-                return [2 /*return*/, JSON.parse(decrypted)];
+                _a.sent();
+                return [3 /*break*/, 4];
             case 3:
                 error_2 = _a.sent();
-                if (error_2.code === 'ENOENT') {
+                // File doesn't exist, return empty array for first use
+                return [2 /*return*/, []];
+            case 4:
+                if (!!password) return [3 /*break*/, 6];
+                return [4 /*yield*/, fs.readFile(SECRETS_FILE, 'utf8')];
+            case 5:
+                fileContents = _a.sent();
+                if (fileContents) {
+                    throw new Error('Password required');
+                }
+                _a.label = 6;
+            case 6: return [4 /*yield*/, fs.readFile(SECRETS_FILE, 'utf8')];
+            case 7:
+                encrypted = _a.sent();
+                return [4 /*yield*/, decryptData(encrypted, password)];
+            case 8:
+                decrypted = _a.sent();
+                return [2 /*return*/, JSON.parse(decrypted)];
+            case 9:
+                error_3 = _a.sent();
+                if (error_3.message === 'Password required') {
+                    throw error_3;
+                }
+                // For any other error during first use, return empty array
+                if (!password) {
                     return [2 /*return*/, []];
                 }
-                console.error('Failed to load accounts:', error_2);
-                throw error_2;
-            case 4: return [2 /*return*/];
+                console.error('Failed to load accounts:', error_3);
+                throw error_3;
+            case 10: return [2 /*return*/];
         }
     });
 }); });
