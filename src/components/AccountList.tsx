@@ -1,0 +1,64 @@
+import React from 'react';
+import { Trash2 } from 'lucide-react';
+import type { AuthAccount } from '../lib/types';
+
+interface AccountListProps {
+  accounts: AuthAccount[];
+  selectedId: string | undefined;
+  onSelect: (account: AuthAccount) => void;
+  onDelete: (id: string) => void;
+}
+
+export function AccountList({ accounts, selectedId, onSelect, onDelete }: AccountListProps) {
+  if (accounts.length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className="text-center text-gray-500">
+          <p className="text-lg mb-2">No accounts added yet</p>
+          <p className="text-sm">Add your first account to get started</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <div className="p-4 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-900">Your Accounts</h2>
+        <p className="text-sm text-gray-500 mt-1">{accounts.length} total</p>
+      </div>
+      <div className="divide-y divide-gray-200">
+        {accounts.map((account) => (
+          <div
+            key={account.id}
+            className={`
+              group relative p-4 cursor-pointer transition-colors duration-150
+              ${selectedId === account.id ? 'bg-blue-50' : 'hover:bg-gray-50'}
+            `}
+            onClick={() => onSelect(account)}
+          >
+            <div className="flex flex-col">
+              <span className="font-medium text-gray-900">{account.issuer}</span>
+              <span className="text-sm text-gray-500">{account.name}</span>
+            </div>
+            
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(account.id);
+              }}
+              className={`
+                absolute right-4 top-1/2 -translate-y-1/2
+                p-2 rounded-full transition-opacity duration-150
+                ${selectedId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                hover:bg-red-100
+              `}
+            >
+              <Trash2 className="w-4 h-4 text-red-600" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+} 
