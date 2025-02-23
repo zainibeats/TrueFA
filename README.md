@@ -7,8 +7,6 @@ TrueFA is a secure, offline Two-Factor Authentication (2FA) application built wi
 - 🔒 Completely offline operation
 - 💾 Optional encrypted local storage with master password
 - 📷 QR code scanning support
-- 📋 One-click code copying
-- ⚡ Fast and responsive interface
 - 🔐 Secure token storage with AES-256-GCM encryption
 
 ## Development
