@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "concurrently \"vite\" \"npm run electron:dev\"",
     "electron:dev": "tsc electron/main.ts electron/preload.ts --outDir dist-electron && cross-env NODE_ENV=development electron .",
-    "clean": "rimraf dist dist-electron build",
+    "preclean": "powershell -Command \"Stop-Process -Name TrueFA -ErrorAction SilentlyContinue; exit 0\"",
+    "clean": "rimraf dist dist-electron build || powershell -Command \"Remove-Item -Recurse -Force dist, dist-electron, build -ErrorAction SilentlyContinue\"",
     "build": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false",
     "build:quick": "electron-builder --win --config.asar=false --dir",
     "build:dev": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false --dir",
