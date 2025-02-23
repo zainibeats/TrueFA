@@ -3,7 +3,13 @@ const path = require('path');
 const fs = require('fs/promises');
 const nodeCrypto = require('crypto');
 
-let mainWindow: Electron.BrowserWindow | null = null;
+// Import Electron types
+import { type BrowserWindow as ElectronWindow } from 'electron';
+
+// Suppress DevTools warnings
+process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+
+let mainWindow: ElectronWindow | null = null;
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
 
@@ -15,11 +21,16 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 800,
+    minHeight: 600,
+    icon: path.join(__dirname, '../assets/truefa1.png'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js')
     },
+    backgroundColor: '#f8fafc', // Light gray background
+    show: false, // Don't show until ready
   });
 
   if (mainWindow) {
@@ -27,8 +38,13 @@ function createWindow() {
     mainWindow.loadURL(
       isDev
         ? 'http://localhost:5173' // Vite dev server URL
-        : `file://${path.join(__dirname, '../dist/index.html')}`
+        : `file://${path.join(__dirname, '..', 'dist', 'index.html')}`
     );
+
+    // Show window when ready
+    mainWindow.once('ready-to-show', () => {
+      mainWindow?.show();
+    });
 
     // Open the DevTools in development.
     if (isDev) {
