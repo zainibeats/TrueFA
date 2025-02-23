@@ -19,7 +19,7 @@ declare global {
 }
 
 function App() {
-  const [accounts, setAccounts] = useState<AuthAccount[]>([]);
+  const [savedAccounts, setSavedAccounts] = useState<AuthAccount[]>([]);
   const [currentAccount, setCurrentAccount] = useState<AuthAccount | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [password, setPassword] = useState<string | null>(null);
@@ -36,7 +36,7 @@ function App() {
     const loadAccounts = async () => {
       try {
         const loadedAccounts = await window.electronAPI.loadAccounts(password);
-        setAccounts(loadedAccounts);
+        setSavedAccounts(loadedAccounts);
         setError(null);
       } catch (error) {
         console.error('Failed to load accounts:', error);
@@ -50,12 +50,12 @@ function App() {
 
   // Save accounts whenever they change (only if we have a password)
   useEffect(() => {
-    if (!password || accounts.length === 0) return;
+    if (!password || savedAccounts.length === 0) return;
 
-    window.electronAPI.saveAccounts(accounts, password).catch((error) => {
+    window.electronAPI.saveAccounts(savedAccounts, password).catch((error) => {
       console.error('Failed to save accounts:', error);
     });
-  }, [accounts, password]);
+  }, [savedAccounts, password]);
 
   const handleAddAccount = (account: AuthAccount) => {
     setCurrentAccount(account);
@@ -72,7 +72,7 @@ function App() {
     }
 
     // If we already have a password, just save the account
-    setAccounts(prev => [...prev, accountToSave]);
+    setSavedAccounts(prev => [...prev, accountToSave]);
   };
 
   const handlePasswordSubmit = async () => {
@@ -94,7 +94,7 @@ function App() {
 
     // If we have a pending account to save, save it now
     if (tempAccountToSave) {
-      setAccounts(prev => [...prev, tempAccountToSave]);
+      setSavedAccounts(prev => [...prev, tempAccountToSave]);
       setTempAccountToSave(null);
     }
   };
@@ -116,15 +116,17 @@ function App() {
 
       <div className="pt-20 pb-6 px-4">
         <div className="max-w-full mx-auto grid grid-cols-12 gap-6">
-          {accounts.length > 0 && (
+          {savedAccounts.length > 0 && (
             <div className="col-span-3">
               <div className="sticky top-20">
                 <AccountList
-                  accounts={accounts}
+                  accounts={savedAccounts}
                   selectedId={currentAccount?.id}
-                  onSelect={setCurrentAccount}
+                  onSelect={(account) => {
+                    setCurrentAccount(account);
+                  }}
                   onDelete={(id) => {
-                    setAccounts(prev => prev.filter(acc => acc.id !== id));
+                    setSavedAccounts(prev => prev.filter(acc => acc.id !== id));
                     if (currentAccount?.id === id) {
                       setCurrentAccount(null);
                     }
@@ -133,12 +135,12 @@ function App() {
               </div>
             </div>
           )}
-          <div className={accounts.length > 0 ? "col-span-9" : "col-span-12"}>
+          <div className={savedAccounts.length > 0 ? "col-span-9" : "col-span-12"}>
             {currentAccount ? (
               <TokenDisplay
                 account={currentAccount}
                 onSave={handleSaveAccount}
-                isSaved={accounts.some(acc => acc.id === currentAccount.id)}
+                isSaved={savedAccounts.some(acc => acc.id === currentAccount.id)}
               />
             ) : (
               <div className="h-[calc(100vh-8rem)] flex items-center justify-center p-8 bg-white rounded-lg shadow-lg">
