@@ -1,22 +1,28 @@
+// Import required Electron modules and Node.js built-ins
 const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const nodeCrypto = require('crypto');
 
-// Import Electron types
-import { type BrowserWindow as ElectronWindow } from 'electron';
+// Type imports for TypeScript
+import type { BrowserWindow as ElectronWindow } from 'electron';
 
-// Suppress DevTools warnings
+// Suppress DevTools warnings in production
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
+// Global window reference and application constants
 let mainWindow: ElectronWindow | null = null;
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const APP_NAME = 'truefa';
 const SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
 
-// Check if we're in development mode
+// Development mode flag
 const isDev = process.env.NODE_ENV === 'development';
 
+/**
+ * Creates and configures the main application window
+ * Sets up window properties, loads content, and configures menu
+ */
 function createWindow() {
   // Create the browser window.
   mainWindow = new BrowserWindow({
@@ -75,7 +81,12 @@ function createWindow() {
   Menu.setApplicationMenu(menu);
 }
 
-// Secure storage functions
+/**
+ * Encrypts data using AES-256-GCM with PBKDF2 key derivation
+ * @param data - String data to encrypt
+ * @param password - Master password for encryption
+ * @returns JSON string containing encrypted data and parameters
+ */
 async function encryptData(data: string, password: string): Promise<string> {
   const salt = nodeCrypto.randomBytes(16);
   const iv = nodeCrypto.randomBytes(12);
@@ -95,6 +106,12 @@ async function encryptData(data: string, password: string): Promise<string> {
   });
 }
 
+/**
+ * Decrypts data using AES-256-GCM with PBKDF2 key derivation
+ * @param encryptedJson - JSON string containing encrypted data and parameters
+ * @param password - Master password for decryption
+ * @returns Decrypted string data
+ */
 async function decryptData(encryptedJson: string, password: string): Promise<string> {
   const { salt, iv, authTag, data } = JSON.parse(encryptedJson);
   
@@ -119,7 +136,7 @@ async function decryptData(encryptedJson: string, password: string): Promise<str
   return decrypted;
 }
 
-// IPC Handlers
+// IPC Handlers for account management
 ipcMain.handle('save-accounts', async (_: Electron.IpcMainInvokeEvent, { accounts, password }: { accounts: unknown[]; password: string }) => {
   try {
     console.log('💾 [Main] Saving accounts to:', SECRETS_FILE);
@@ -183,7 +200,7 @@ ipcMain.handle('load-accounts', async (_: Electron.IpcMainInvokeEvent, password:
   }
 });
 
-// Auto-cleanup timer (5 minutes)
+// Auto-cleanup timer (5 minutes) for security
 let cleanupTimer: NodeJS.Timeout | null = null;
 
 ipcMain.handle('start-cleanup-timer', () => {
@@ -198,6 +215,7 @@ ipcMain.handle('start-cleanup-timer', () => {
   }, 5 * 60 * 1000); // 5 minutes
 });
 
+// Application lifecycle event handlers
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
