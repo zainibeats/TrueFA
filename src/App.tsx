@@ -190,85 +190,23 @@ function App() {
 
   return (
     <div className="min-h-screen bg-truefa-light">
-      <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-truefa-dark">TrueFA</h1>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-2 px-4 py-2 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
-          >
-            <Plus className="w-5 h-5" />
-            <span>Add Account</span>
-          </button>
-        </div>
-      </header>
-
-      <div className="pt-20 pb-6 px-4">
-        <div className="max-w-full mx-auto grid grid-cols-12 gap-6">
-          {savedAccounts.length > 0 && (
-            <div className="col-span-3">
-              <div className="sticky top-20">
-                <AccountList
-                  accounts={savedAccounts}
-                  selectedId={currentAccount?.id}
-                  onSelect={(account) => {
-                    setCurrentAccount(account);
-                  }}
-                  onDelete={(id) => {
-                    setSavedAccounts(prev => prev.filter(acc => acc.id !== id));
-                    if (currentAccount?.id === id) {
-                      setCurrentAccount(null);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          )}
-          <div className={savedAccounts.length > 0 ? "col-span-9" : "col-span-12"}>
-            {currentAccount ? (
-              <TokenDisplay
-                account={currentAccount}
-                onSave={handleSaveAccount}
-                isSaved={savedAccounts.some(acc => acc.id === currentAccount.id)}
-              />
-            ) : (
-              <div className="h-[calc(100vh-8rem)] flex items-center justify-center p-8 bg-white rounded-lg shadow-lg">
-                <div className="text-center text-truefa-gray">
-                  <Shield className="w-16 h-16 mx-auto mb-4 text-truefa-blue" />
-                  <p className="text-lg">Scan a QR code to view TOTP codes</p>
-                  <button
-                    onClick={() => setShowAddModal(true)}
-                    className="mt-4 py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
-                  >
-                    Add Account
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {showAddModal && (
-        <AddAccount
-          onAdd={handleAddAccount}
-          onClose={() => setShowAddModal(false)}
-        />
-      )}
-
-      {showPasswordPrompt && (
-        <div className="fixed inset-0 bg-truefa-dark bg-opacity-50 flex items-center justify-center p-4 z-50">
+      {showPasswordPrompt ? (
+        // Full-page password prompt
+        <div className="min-h-screen flex items-center justify-center p-4 bg-truefa-light">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center space-x-2 mb-4">
-              <Lock className="w-5 h-5 text-truefa-blue" />
+            <div className="flex items-center justify-center mb-6">
+              <Shield className="w-12 h-12 text-truefa-blue" />
+            </div>
+            <div className="flex items-center justify-center space-x-2 mb-6">
+              <Lock className="w-6 h-6 text-truefa-blue" />
               <h2 className="text-xl font-semibold text-truefa-dark">
-                {tempAccountToSave ? 'Create Master Password' : 'Enter Master Password'}
+                {tempAccountToSave ? 'Create Master Password' : 'Welcome Back'}
               </h2>
             </div>
             
             <div className="space-y-4">
               {error && (
-                <div className="p-3 bg-red-50 text-red-700 rounded-lg">
+                <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -283,6 +221,7 @@ function App() {
                   onChange={(e) => setTempPassword(e.target.value)}
                   className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
                   placeholder={tempAccountToSave ? "Create master password" : "Enter your master password"}
+                  autoFocus
                 />
               </div>
 
@@ -301,29 +240,107 @@ function App() {
                 </div>
               )}
 
-              <div className="flex space-x-3">
-                <button
-                  onClick={handlePasswordSubmit}
-                  className="flex-1 py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
-                >
-                  {tempAccountToSave ? 'Create Password' : 'Unlock'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowPasswordPrompt(false);
-                    setTempPassword('');
-                    setConfirmPassword('');
-                    setError(null);
-                    setTempAccountToSave(null);
-                  }}
-                  className="flex-1 py-2 px-4 bg-truefa-light text-truefa-gray rounded-lg hover:bg-truefa-sky focus:outline-none focus:ring-2 focus:ring-truefa-gray focus:ring-offset-2"
-                >
-                  Cancel
-                </button>
-              </div>
+              <button
+                onClick={handlePasswordSubmit}
+                className="w-full py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
+              >
+                {tempAccountToSave ? 'Create Password' : 'Unlock'}
+              </button>
+
+              {!tempAccountToSave && (
+                <p className="text-xs text-center text-truefa-gray mt-4">
+                  Enter your master password to access your accounts
+                </p>
+              )}
             </div>
           </div>
         </div>
+      ) : (
+        // Main application content
+        <>
+          <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-10">
+            <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
+              <button
+                onClick={() => {
+                  setPassword(null);
+                  setShowPasswordPrompt(true);
+                  setCurrentAccount(null);
+                  setSavedAccounts([]);
+                }}
+                className="flex items-center space-x-1 px-2 py-1 text-truefa-gray hover:text-truefa-dark focus:outline-none text-sm"
+                title="Logout"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+              <h1 className="text-lg font-bold text-truefa-dark absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+                TrueFA
+              </h1>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add</span>
+              </button>
+            </div>
+          </header>
+
+          <div className="pt-14 pb-2 px-2 min-h-screen max-w-7xl mx-auto">
+            <div className="max-w-lg mx-auto mb-4">
+              {currentAccount ? (
+                <TokenDisplay
+                  account={currentAccount}
+                  onSave={handleSaveAccount}
+                  isSaved={savedAccounts.some(acc => acc.id === currentAccount.id)}
+                />
+              ) : (
+                <div className="h-24 flex items-center justify-center bg-white rounded-lg shadow-lg">
+                  <div className="text-center text-truefa-gray">
+                    <p className="text-sm">Select an account to view code</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {savedAccounts.length > 0 ? (
+              <div className="h-[calc(100vh-11rem)] overflow-y-auto">
+                <AccountList
+                  accounts={savedAccounts}
+                  selectedId={currentAccount?.id}
+                  onSelect={(account) => {
+                    setCurrentAccount(account);
+                  }}
+                  onDelete={(id) => {
+                    setSavedAccounts(prev => prev.filter(acc => acc.id !== id));
+                    if (currentAccount?.id === id) {
+                      setCurrentAccount(null);
+                    }
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="h-[calc(100vh-11rem)] flex items-center justify-center">
+                <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-sm mx-auto">
+                  <Shield className="w-12 h-12 mx-auto mb-3 text-truefa-blue" />
+                  <p className="text-sm text-truefa-gray mb-4">Add your first authentication account</p>
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm"
+                  >
+                    Add Account
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {showAddModal && (
+            <AddAccount
+              onAdd={handleAddAccount}
+              onClose={() => setShowAddModal(false)}
+            />
+          )}
+        </>
       )}
     </div>
   );

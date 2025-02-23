@@ -49,37 +49,42 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete }: Accoun
         <h2 className="text-lg font-semibold text-truefa-dark">Your Accounts</h2>
         <p className="text-sm text-truefa-gray mt-1">{accounts.length} total</p>
       </div>
-      <div className="divide-y divide-truefa-light">
-        {accounts.map((account) => (
-          <div
-            key={account.id}
-            className={`
-              group relative p-4 cursor-pointer transition-colors duration-150
-              ${selectedId === account.id ? 'bg-truefa-sky' : 'hover:bg-truefa-light'}
-            `}
-            onClick={() => onSelect(account)}
-          >
-            <div className="flex flex-col">
-              <span className="font-medium text-truefa-dark">{account.issuer}</span>
-              <span className="text-sm text-truefa-gray">{account.name}</span>
-            </div>
-            
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(account.id);
-              }}
+      <div className="p-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+          {accounts.map((account) => (
+            <div
+              key={account.id}
               className={`
-                absolute right-4 top-1/2 -translate-y-1/2
-                p-2 rounded-full transition-opacity duration-150
-                ${selectedId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
-                hover:bg-red-100
+                group relative p-2 sm:p-3 rounded-lg cursor-pointer transition-all duration-150
+                ${selectedId === account.id 
+                  ? 'bg-truefa-sky border-2 border-truefa-blue' 
+                  : 'bg-truefa-light hover:bg-truefa-sky border-2 border-transparent'
+                }
               `}
+              onClick={() => onSelect(account)}
             >
-              <Trash2 className="w-4 h-4 text-red-600" />
-            </button>
-          </div>
-        ))}
+              <div className="flex flex-col">
+                <span className="font-medium text-truefa-dark truncate">{account.issuer}</span>
+                <span className="text-sm text-truefa-gray truncate">{account.name}</span>
+              </div>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(account.id);
+                }}
+                className={`
+                  absolute right-2 top-2
+                  p-1.5 rounded-full transition-opacity duration-150
+                  opacity-0 group-hover:opacity-100
+                  hover:bg-red-100
+                `}
+              >
+                <Trash2 className="w-4 h-4 text-red-600" />
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

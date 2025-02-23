@@ -26,18 +26,18 @@ const isDev = process.env.NODE_ENV === 'development';
 function createWindow() {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 800,
-    minHeight: 600,
-    icon: path.join(__dirname, '../assets/truefa1.png'),
+    width: 400,
+    height: 600,
+    minWidth: 360,
+    minHeight: 500,
     webPreferences: {
-      nodeIntegration: true,
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      nodeIntegration: false,
     },
-    backgroundColor: '#f8fafc', // Light gray background
-    show: false, // Don't show until ready
+    frame: true,
+    fullscreenable: true,
+    maximizable: true,
   });
 
   if (mainWindow) {
