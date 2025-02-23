@@ -10,11 +10,7 @@
     "preview": "vite preview",
     "electron:dev": "tsc electron/main.ts electron/preload.ts --outDir dist-electron && cross-env NODE_ENV=development electron .",
     "electron:build": "tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder",
-    "electron:preview": "npm run electron:build && electron .",
-    "docker:build": "docker-compose build",
-    "docker:start": "docker-compose up",
-    "docker:stop": "docker-compose down",
-    "docker:clean": "docker-compose down --rmi all -v --remove-orphans"
+    "electron:preview": "npm run electron:build && electron ."
   },
   "build": {
     "appId": "com.authenticator.app",

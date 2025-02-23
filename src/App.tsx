@@ -105,7 +105,7 @@ function App() {
         <div className="max-w-md w-full p-6 bg-white rounded-lg shadow-lg">
           <div className="text-center mb-6">
             <Shield className="w-12 h-12 mx-auto text-blue-600 mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900">Desktop Authenticator</h1>
+            <h1 className="text-2xl font-bold text-gray-900">TrueFA</h1>
             <p className="text-gray-600 mt-2">Enter your password to access your accounts</p>
           </div>
           {error && (
