@@ -6,6 +6,7 @@ import { resolve } from 'path'
 export default defineConfig({
   plugins: [react()],
   base: './',
+  publicDir: 'public',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -48,11 +49,12 @@ export default defineConfig({
     exclude: ['electron', 'electron-is-dev']
   },
   define: {
-    'process.env': {
-      NODE_ENV: JSON.stringify(process.env.NODE_ENV),
-      NODE_DEBUG: false
-    },
+    'process.env': process.env,
     'global': 'globalThis',
+    'Buffer': ['buffer', 'Buffer'],
+    'process.browser': true,
+    'process.version': '"v16.0.0"',
+    '__dirname': JSON.stringify(__dirname)
   },
   server: {
     port: 5173,
