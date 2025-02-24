@@ -14,6 +14,7 @@
     "clean": "rimraf dist dist-electron build || powershell -Command \"Remove-Item -Recurse -Force dist, dist-electron, build -ErrorAction SilentlyContinue\"",
     "build": "npm run clean && tsc && vite build && tsc -p electron/tsconfig.json && electron-builder --win",
     "build:prod": "npm run clean && set NODE_ENV=production && tsc && vite build && tsc -p electron/tsconfig.json && electron-builder --win",
+    "build:portable": "npm run clean && set NODE_ENV=production && tsc && vite build && tsc -p electron/tsconfig.json && electron-builder --win portable",
     "postbuild": "echo Build completed! Check the build directory for the installer."
   },
   "build": {
@@ -35,6 +36,10 @@
         {
           "target": "nsis",
           "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ],
       "icon": "assets/truefa1.ico",
@@ -49,6 +54,9 @@
       "shortcutName": "TrueFA",
       "installerIcon": "assets/truefa1.ico",
       "uninstallerIcon": "assets/truefa1.ico"
+    },
+    "portable": {
+      "artifactName": "TrueFA-Portable-${version}.exe"
     },
     "linux": {
       "target": []
