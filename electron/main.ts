@@ -537,7 +537,7 @@ ipcMain.handle('showImportDialog', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Import TrueFA Accounts',
       filters: [
-        { name: 'TrueFA Export (GPG)', extensions: ['gpg'] },
+        { name: 'TrueFA Export', extensions: ['gpg'] },
         { name: 'All Files', extensions: ['*'] }
       ],
       properties: ['openFile']
