@@ -181,8 +181,10 @@ function createWindow() {
     // Show window when ready
     mainWindow.once('ready-to-show', () => {
       mainWindow?.show();
-      // Always open DevTools for debugging
-      mainWindow?.webContents.openDevTools();
+      // Only open DevTools in development mode
+      if (isDev) {
+        mainWindow?.webContents.openDevTools();
+      }
     });
   }
 
