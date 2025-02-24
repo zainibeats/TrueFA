@@ -106,6 +106,19 @@ contextBridge.exposeInMainWorld(
       return () => {
         ipcRenderer.removeAllListeners('theme-changed');
       };
+    },
+    
+    /**
+     * Check if accounts exist without loading them
+     * @returns Promise<boolean> indicating if accounts exist
+     */
+    checkAccountsExist: async () => {
+      try {
+        return await ipcRenderer.invoke('check-accounts-exist');
+      } catch (error) {
+        console.error('Error in checkAccountsExist:', error);
+        throw preserveError(error);
+      }
     }
   }
 ); 
