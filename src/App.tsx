@@ -603,7 +603,7 @@ function App() {
             
             {/* App logo */}
             <div className="flex flex-col items-center mb-8">
-              <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
+              <img src="./assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
             
             {/* Password form fields */}
@@ -913,7 +913,7 @@ function App() {
               /* Empty accounts state */
               <div className="h-[calc(100vh-11rem)] flex items-center justify-center">
                 <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-8 text-center max-w-sm mx-auto`}>
-                  <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16 mx-auto mb-3" />
+                  <img src="./assets/truefa1.png" alt="TrueFA" className="w-16 h-16 mx-auto mb-3" />
                   <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-4`}>Add your first authentication account</p>
                   <button
                     onClick={() => setShowAddModal(true)}
