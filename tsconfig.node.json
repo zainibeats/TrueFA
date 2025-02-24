@@ -3,11 +3,9 @@
     "composite": true,
     "skipLibCheck": true,
     "module": "CommonJS",
-    "moduleResolution": "Node",
+    "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "outDir": "dist-electron",
-    "types": ["node"]
+    "esModuleInterop": true
   },
-  "include": ["electron"]
+  "include": ["vite.config.ts", "electron"]
 } 
