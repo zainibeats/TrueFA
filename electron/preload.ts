@@ -102,7 +102,7 @@ contextBridge.exposeInMainWorld(
      * @returns Cleanup function to remove the listener
      */
     onThemeChange: (callback: (isDarkMode: boolean) => void) => {
-      ipcRenderer.on('theme-changed', (_, isDarkMode) => callback(isDarkMode));
+      ipcRenderer.on('theme-changed', (_: Electron.IpcRendererEvent, isDarkMode: boolean) => callback(isDarkMode));
       return () => {
         ipcRenderer.removeAllListeners('theme-changed');
       };
@@ -182,7 +182,7 @@ contextBridge.exposeInMainWorld(
      * @returns Cleanup function to remove the listener
      */
     onImportAccountsRequested: (callback: (filePath: string) => void) => {
-      ipcRenderer.on('import-accounts-requested', (_, filePath) => callback(filePath));
+      ipcRenderer.on('import-accounts-requested', (_: Electron.IpcRendererEvent, filePath: string) => callback(filePath));
       return () => {
         ipcRenderer.removeAllListeners('import-accounts-requested');
       };
