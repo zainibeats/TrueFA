@@ -186,6 +186,34 @@ contextBridge.exposeInMainWorld(
       return () => {
         ipcRenderer.removeAllListeners('import-accounts-requested');
       };
+    },
+
+    /**
+     * Register manual logout callback
+     * @param callback - Function to call when manual logout is needed
+     * @returns Cleanup function to remove the listener
+     */
+    onManualLogout: (callback: () => void) => {
+      ipcRenderer.on('manual-logout', () => callback());
+      return () => {
+        ipcRenderer.removeListener('manual-logout', callback);
+      };
+    },
+
+    onChangeMasterPasswordRequested: (callback: () => void) => {
+      ipcRenderer.on('change-master-password-requested', () => callback());
+      return () => {
+        ipcRenderer.removeListener('change-master-password-requested', callback);
+      };
+    },
+
+    updateVaultState: async (locked: boolean) => {
+      try {
+        return await ipcRenderer.invoke('update-vault-state', locked);
+      } catch (error) {
+        console.error('Error updating vault state:', error);
+        throw preserveError(error);
+      }
     }
   }
 ); 
