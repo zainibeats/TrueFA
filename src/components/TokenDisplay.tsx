@@ -9,11 +9,13 @@ import type { AuthAccount } from '../lib/types';
  * @property {AuthAccount} account - The authentication account to display tokens for
  * @property {function} [onSave] - Optional callback function when account details are saved
  * @property {boolean} [isSaved=false] - Whether the account is saved in storage
+ * @property {boolean} [isDarkMode=false] - Whether the component is in dark mode
  */
 interface TokenDisplayProps {
   account: AuthAccount;
   onSave?: (account: AuthAccount) => void;
   isSaved?: boolean;
+  isDarkMode?: boolean;
 }
 
 /**
@@ -30,7 +32,7 @@ interface TokenDisplayProps {
  * @param {TokenDisplayProps} props - Component properties
  * @returns {JSX.Element} Rendered token display
  */
-export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayProps) {
+export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = false }: TokenDisplayProps) {
   const [token, setToken] = useState('');
   const [remainingTime, setRemainingTime] = useState(30);
   const [copied, setCopied] = useState(false);
@@ -111,12 +113,12 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-lg h-full">
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg h-full`}>
         <div className="h-full flex flex-col p-3">
           <div className="flex items-center justify-between mb-2">
             <div>
-              <h2 className="text-base font-semibold text-truefa-dark">{account.issuer}</h2>
-              <p className="text-xs text-truefa-gray">{account.name}</p>
+              <h2 className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>{account.issuer}</h2>
+              <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>{account.name}</p>
             </div>
             {!isSaved && onSave && (
               <button
@@ -131,13 +133,13 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
 
           <div className="flex items-center justify-center space-x-2 mb-2">
             <div className="relative">
-              <div className="text-2xl font-mono tracking-[0.25em] text-truefa-dark bg-truefa-light py-2 px-4 rounded-lg shadow-inner min-w-[160px] text-center">
+              <div className={`text-2xl font-mono tracking-[0.25em] ${isDarkMode ? 'text-white bg-gray-700' : 'text-truefa-dark bg-truefa-light'} py-2 px-4 rounded-lg shadow-inner min-w-[160px] text-center`}>
                 {showCode ? formattedToken : maskedToken}
               </div>
               <div className="absolute -right-8 top-1/2 -translate-y-1/2 flex flex-col gap-1">
                 <button
                   onClick={() => setShowCode(!showCode)}
-                  className="p-1 text-truefa-gray hover:text-truefa-dark focus:outline-none"
+                  className={`p-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none`}
                   title={showCode ? "Hide code" : "Show code"}
                 >
                   {showCode ? (
@@ -148,7 +150,7 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
                 </button>
                 <button
                   onClick={handleCopy}
-                  className="p-1 text-truefa-gray hover:text-truefa-dark focus:outline-none"
+                  className={`p-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none`}
                   title="Copy code"
                 >
                   {copied ? (
@@ -162,14 +164,14 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
           </div>
 
           <div className="flex items-center justify-center space-x-2 text-xs mb-1">
-            <RefreshCw className={`w-3 h-3 ${remainingTime <= 5 ? 'text-red-500' : 'text-truefa-gray'}`} />
-            <span className={`${remainingTime <= 5 ? 'text-red-500' : 'text-truefa-gray'}`}>
+            <RefreshCw className={`w-3 h-3 ${remainingTime <= 5 ? 'text-red-500' : isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`} />
+            <span className={`${remainingTime <= 5 ? 'text-red-500' : isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
               {remainingTime}s
             </span>
           </div>
 
           <div className="w-full">
-            <div className="h-1 bg-truefa-light rounded-full overflow-hidden">
+            <div className={`h-1 ${isDarkMode ? 'bg-gray-700' : 'bg-truefa-light'} rounded-full overflow-hidden`}>
               <div
                 className="h-full bg-truefa-blue transition-all duration-1000 rounded-full"
                 style={{ width: `${(remainingTime / 30) * 100}%` }}
@@ -181,22 +183,24 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
 
       {showSavePrompt && (
         <div className="fixed inset-0 bg-truefa-dark bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-4">
+          <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-4`}>
             <div className="flex items-center space-x-2 mb-3">
               <Lock className="w-4 h-4 text-truefa-blue" />
-              <h2 className="text-lg font-semibold text-truefa-dark">Save Account</h2>
+              <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>Save Account</h2>
             </div>
             
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-truefa-gray mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                   Account Name
                 </label>
                 <input
                   type="text"
                   value={accountName}
                   onChange={(e) => setAccountName(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                  }`}
                   placeholder="Enter account name"
                 />
               </div>
@@ -210,7 +214,11 @@ export function TokenDisplay({ account, onSave, isSaved = false }: TokenDisplayP
                 </button>
                 <button
                   onClick={() => setShowSavePrompt(false)}
-                  className="flex-1 py-1.5 px-3 bg-truefa-light text-truefa-gray rounded-lg hover:bg-truefa-sky focus:outline-none focus:ring-2 focus:ring-truefa-gray focus:ring-offset-2 text-sm"
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-sm ${
+                    isDarkMode
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      : 'bg-truefa-light text-truefa-gray hover:bg-truefa-sky'
+                  } focus:outline-none focus:ring-2 focus:ring-truefa-gray focus:ring-offset-2`}
                 >
                   Cancel
                 </button>

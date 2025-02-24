@@ -9,10 +9,12 @@ import type { AuthAccount } from '../lib/types';
  * @interface AddAccountProps
  * @property {function} onAdd - Callback function when a new account is added
  * @property {function} onClose - Callback function to close the add account dialog
+ * @property {boolean} isDarkMode - Whether dark mode is enabled
  */
 interface AddAccountProps {
   onAdd: (account: AuthAccount) => void;
   onClose: () => void;
+  isDarkMode: boolean;
 }
 
 /**
@@ -28,7 +30,7 @@ interface AddAccountProps {
  * @param {AddAccountProps} props - Component properties
  * @returns {JSX.Element} Rendered add account form
  */
-export function AddAccount({ onAdd, onClose }: AddAccountProps) {
+export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
   const [mode, setMode] = useState<'qr' | 'manual'>('qr');
   const [error, setError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,12 +170,12 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
 
   return (
     <div className="fixed inset-0 bg-truefa-dark bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="flex justify-between items-center p-4 border-b border-truefa-light">
-          <h2 className="text-xl font-semibold text-truefa-dark">Add New Account</h2>
+      <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full`}>
+        <div className={`flex justify-between items-center p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-truefa-light'}`}>
+          <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>Add New Account</h2>
           <button
             onClick={onClose}
-            className="text-truefa-gray hover:text-truefa-dark"
+            className={`${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'}`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -185,7 +187,9 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
               className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 ${
                 mode === 'qr'
                   ? 'bg-truefa-blue text-white'
-                  : 'bg-truefa-light text-truefa-gray hover:bg-truefa-sky'
+                  : isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-truefa-light text-truefa-gray hover:bg-truefa-sky'
               }`}
               onClick={() => setMode('qr')}
             >
@@ -196,7 +200,9 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
               className={`flex-1 py-2 px-4 rounded-lg flex items-center justify-center space-x-2 ${
                 mode === 'manual'
                   ? 'bg-truefa-blue text-white'
-                  : 'bg-truefa-light text-truefa-gray hover:bg-truefa-sky'
+                  : isDarkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-truefa-light text-truefa-gray hover:bg-truefa-sky'
               }`}
               onClick={() => setMode('manual')}
             >
@@ -213,7 +219,7 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
 
           {mode === 'qr' ? (
             <div className="space-y-4">
-              <p className="text-truefa-gray">
+              <p className={`${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
                 Select a QR code image from your computer to add a new account.
               </p>
               <input
@@ -225,7 +231,11 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="w-full py-3 px-4 border-2 border-dashed border-truefa-light rounded-lg text-truefa-gray hover:border-truefa-blue hover:text-truefa-blue transition-colors"
+                className={`w-full py-3 px-4 border-2 border-dashed rounded-lg transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 text-gray-300 hover:border-truefa-blue hover:text-truefa-blue'
+                    : 'border-truefa-light text-truefa-gray hover:border-truefa-blue hover:text-truefa-blue'
+                }`}
               >
                 Click to select image
               </button>
@@ -233,38 +243,44 @@ export function AddAccount({ onAdd, onClose }: AddAccountProps) {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-truefa-gray mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                   Secret Key
                 </label>
                 <input
                   type="text"
                   value={manualSecret}
                   onChange={(e) => setManualSecret(e.target.value.toUpperCase())}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                  }`}
                   placeholder="Enter secret key"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-truefa-gray mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                   Service Name
                 </label>
                 <input
                   type="text"
                   value={manualIssuer}
                   onChange={(e) => setManualIssuer(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                  }`}
                   placeholder="e.g., Google, GitHub"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-truefa-gray mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                   Account Name (Optional)
                 </label>
                 <input
                   type="text"
                   value={manualAccount}
                   onChange={(e) => setManualAccount(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                  }`}
                   placeholder="e.g., user@example.com"
                 />
               </div>

@@ -81,6 +81,18 @@ contextBridge.exposeInMainWorld(
       return () => {
         ipcRenderer.removeAllListeners('cleanup-needed');
       };
+    },
+    
+    /**
+     * Register theme change callback
+     * @param callback - Function to call when theme changes
+     * @returns Cleanup function to remove the listener
+     */
+    onThemeChange: (callback: (isDarkMode: boolean) => void) => {
+      ipcRenderer.on('theme-changed', (_, isDarkMode) => callback(isDarkMode));
+      return () => {
+        ipcRenderer.removeAllListeners('theme-changed');
+      };
     }
   }
 ); 

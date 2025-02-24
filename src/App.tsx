@@ -14,6 +14,7 @@ declare global {
       loadAccounts: (password: string) => Promise<AuthAccount[]>;
       startCleanupTimer: () => Promise<void>;
       onCleanupNeeded: (callback: () => void) => () => void;
+      onThemeChange: (callback: (isDarkMode: boolean) => void) => () => void;
     };
   }
 }
@@ -29,6 +30,16 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [tempAccountToSave, setTempAccountToSave] = useState<AuthAccount | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Listen for theme changes
+  useEffect(() => {
+    return window.electronAPI.onThemeChange((darkMode) => {
+      setIsDarkMode(darkMode);
+      // Update body class for dark mode
+      document.body.classList.toggle('dark', darkMode);
+    });
+  }, []);
 
   // Debug state changes
   useEffect(() => {
@@ -189,20 +200,17 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-truefa-light">
+    <div className={`min-h-screen ${isDarkMode ? 'dark bg-truefa-dark' : 'bg-truefa-light'}`}>
       {showPasswordPrompt ? (
         // Full-page password prompt
-        <div className="min-h-screen flex items-center justify-center p-4 bg-truefa-light">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+        <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-truefa-dark' : 'bg-truefa-light'}`}>
+          <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6`}>
             <div className="flex items-center justify-center mb-6">
-              <Shield className="w-12 h-12 text-truefa-blue" />
+              <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
-            <div className="flex items-center justify-center space-x-2 mb-6">
-              <Lock className="w-6 h-6 text-truefa-blue" />
-              <h2 className="text-xl font-semibold text-truefa-dark">
-                {tempAccountToSave ? 'Create Master Password' : 'Welcome Back'}
-              </h2>
-            </div>
+            <h1 className={`text-center text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} mb-6`}>
+              TrueFA
+            </h1>
             
             <div className="space-y-4">
               {error && (
@@ -212,14 +220,16 @@ function App() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-truefa-gray mb-1">
+                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                   Master Password
                 </label>
                 <input
                   type="password"
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                  }`}
                   placeholder={tempAccountToSave ? "Create master password" : "Enter your master password"}
                   autoFocus
                 />
@@ -227,14 +237,16 @@ function App() {
 
               {tempAccountToSave && (
                 <div>
-                  <label className="block text-sm font-medium text-truefa-gray mb-1">
+                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                     Confirm Password
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent"
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                      isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                    }`}
                     placeholder="Confirm master password"
                   />
                 </div>
@@ -242,13 +254,15 @@ function App() {
 
               <button
                 onClick={handlePasswordSubmit}
-                className="w-full py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2"
+                className={`w-full py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 ${
+                  isDarkMode ? 'bg-gray-700' : ''
+                }`}
               >
                 {tempAccountToSave ? 'Create Password' : 'Unlock'}
               </button>
 
               {!tempAccountToSave && (
-                <p className="text-xs text-center text-truefa-gray mt-4">
+                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
                   Enter your master password to access your accounts
                 </p>
               )}
@@ -258,7 +272,7 @@ function App() {
       ) : (
         // Main application content
         <>
-          <header className="fixed top-0 left-0 right-0 bg-white shadow-sm z-10">
+          <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
             <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
               <button
                 onClick={() => {
@@ -267,17 +281,19 @@ function App() {
                   setCurrentAccount(null);
                   setSavedAccounts([]);
                 }}
-                className="flex items-center space-x-1 px-2 py-1 text-truefa-gray hover:text-truefa-dark focus:outline-none text-sm"
+                className={`flex items-center space-x-1 px-2 py-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none text-sm`}
                 title="Logout"
               >
                 <Lock className="w-4 h-4" />
               </button>
-              <h1 className="text-lg font-bold text-truefa-dark absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+              <h1 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`}>
                 TrueFA
               </h1>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm"
+                className={`flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
+                  isDarkMode ? 'bg-gray-700' : ''
+                }`}
               >
                 <Plus className="w-4 h-4" />
                 <span>Add</span>
@@ -292,10 +308,11 @@ function App() {
                   account={currentAccount}
                   onSave={handleSaveAccount}
                   isSaved={savedAccounts.some(acc => acc.id === currentAccount.id)}
+                  isDarkMode={isDarkMode}
                 />
               ) : (
-                <div className="h-24 flex items-center justify-center bg-white rounded-lg shadow-lg">
-                  <div className="text-center text-truefa-gray">
+                <div className={`h-24 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg`}>
+                  <div className={`text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
                     <p className="text-sm">Select an account to view code</p>
                   </div>
                 </div>
@@ -316,16 +333,17 @@ function App() {
                       setCurrentAccount(null);
                     }
                   }}
+                  isDarkMode={isDarkMode}
                 />
               </div>
             ) : (
               <div className="h-[calc(100vh-11rem)] flex items-center justify-center">
-                <div className="bg-white rounded-lg shadow-lg p-8 text-center max-w-sm mx-auto">
+                <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-8 text-center max-w-sm mx-auto`}>
                   <Shield className="w-12 h-12 mx-auto mb-3 text-truefa-blue" />
-                  <p className="text-sm text-truefa-gray mb-4">Add your first authentication account</p>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-4`}>Add your first authentication account</p>
                   <button
                     onClick={() => setShowAddModal(true)}
-                    className="py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm"
+                    className={`py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm`}
                   >
                     Add Account
                   </button>
@@ -338,6 +356,7 @@ function App() {
             <AddAccount
               onAdd={handleAddAccount}
               onClose={() => setShowAddModal(false)}
+              isDarkMode={isDarkMode}
             />
           )}
         </>

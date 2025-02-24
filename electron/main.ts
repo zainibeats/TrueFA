@@ -15,9 +15,13 @@ let mainWindow: ElectronWindow | null = null;
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 const APP_NAME = 'truefa';
 const SECRETS_FILE = path.join(app.getPath('userData'), 'secrets.enc');
+const THEME_FILE = path.join(app.getPath('userData'), 'theme.json');
 
 // Development mode flag
 const isDev = process.env.NODE_ENV === 'development';
+
+// Theme state
+let isDarkMode = false;
 
 /**
  * Creates and configures the main application window
@@ -56,7 +60,32 @@ function createWindow() {
     });
   }
 
-  // Create the application menu
+  updateMenu();
+}
+
+// Load theme preference
+async function loadTheme() {
+  try {
+    const themeData = await fs.readFile(THEME_FILE, 'utf8');
+    const theme = JSON.parse(themeData);
+    isDarkMode = theme.isDarkMode;
+  } catch (error) {
+    isDarkMode = false;
+  }
+  return isDarkMode;
+}
+
+// Save theme preference
+async function saveTheme(darkMode: boolean) {
+  try {
+    await fs.writeFile(THEME_FILE, JSON.stringify({ isDarkMode: darkMode }));
+  } catch (error) {
+    console.error('Failed to save theme preference:', error);
+  }
+}
+
+// Update the application menu
+function updateMenu() {
   const template = [
     {
       label: 'File',
@@ -71,6 +100,20 @@ function createWindow() {
           accelerator: process.platform === 'darwin' ? 'Command+Q' : 'Alt+F4',
           click: () => {
             app.quit();
+          }
+        }
+      ]
+    },
+    {
+      label: 'Options',
+      submenu: [
+        {
+          label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+          click: async () => {
+            isDarkMode = !isDarkMode;
+            await saveTheme(isDarkMode);
+            mainWindow?.webContents.send('theme-changed', isDarkMode);
+            updateMenu();
           }
         }
       ]
@@ -216,7 +259,10 @@ ipcMain.handle('start-cleanup-timer', () => {
 });
 
 // Application lifecycle event handlers
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  isDarkMode = await loadTheme();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

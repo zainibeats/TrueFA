@@ -136,5 +136,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return function () {
             ipcRenderer.removeAllListeners('cleanup-needed');
         };
+    },
+    /**
+     * Register theme change callback
+     * @param callback - Function to call when theme changes
+     * @returns Cleanup function to remove the listener
+     */
+    onThemeChange: function (callback) {
+        ipcRenderer.on('theme-changed', function (_, isDarkMode) { return callback(isDarkMode); });
+        return function () {
+            ipcRenderer.removeAllListeners('theme-changed');
+        };
     }
 });
