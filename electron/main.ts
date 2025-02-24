@@ -1,8 +1,9 @@
 // Import required Electron modules and Node.js built-ins
 import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
-import path from 'path';
-import fs from 'fs';
-import nodeCrypto, { CipherGCM, DecipherGCM } from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs';
+import * as nodeCrypto from 'crypto';
+import type { CipherGCM, DecipherGCM } from 'crypto';
 
 interface AuthAccount {
   id: string;
@@ -359,9 +360,9 @@ function decryptData(encryptedData: string, password: string): string {
 }
 
 /** Save accounts to encrypted storage */
-ipcMain.handle('save-accounts', async (event, accounts: AuthAccount[], password: string) => {
+ipcMain.handle('save-accounts', async (event, { accounts, password }) => {
   try {
-    if (accounts.length === 0) {
+    if (!accounts || accounts.length === 0) {
       // Delete the secrets file if no accounts
       if (fs.existsSync(SECRETS_FILE)) {
         fs.unlinkSync(SECRETS_FILE);
@@ -468,5 +469,16 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
+  }
+});
+
+ipcMain.handle('check-accounts-exist', async () => {
+  try {
+    await fs.promises.access(SECRETS_FILE);
+    console.log('✅ [Main] Secrets file exists');
+    return true;
+  } catch (error) {
+    console.log('📭 [Main] Secrets file does not exist');
+    return false;
   }
 }); 
