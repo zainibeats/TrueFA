@@ -96,7 +96,7 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMo
         </div>
       </div>
       <div className="p-4">
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {filteredAccounts.map((account) => (
             <div
               key={account.id}
@@ -104,28 +104,28 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMo
                 selectedId === account.id
                   ? isDarkMode ? 'bg-gray-700' : 'bg-truefa-sky'
                   : isDarkMode ? 'bg-gray-800' : 'bg-white'
-              } rounded-lg shadow-sm p-3 cursor-pointer transition-colors flex items-center justify-between`}
+              } rounded-lg shadow-md hover:shadow-lg p-3 cursor-pointer transition-all flex flex-col justify-between`}
               onClick={() => onSelect(account)}
             >
               <div>
-                <h3 className={`font-medium ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>
+                <h3 className={`font-medium truncate ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>
                   {account.issuer}
                 </h3>
-                <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
+                <p className={`text-sm truncate ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
                   {account.name}
                 </p>
               </div>
               {deleteConfirmId === account.id ? (
-                <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center space-x-1 mt-2" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => handleConfirmDelete(account.id)}
-                    className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                    className="flex-1 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
                   >
                     Confirm
                   </button>
                   <button
                     onClick={handleCancelDelete}
-                    className={`px-2 py-1 text-sm rounded ${
+                    className={`flex-1 px-2 py-1 text-xs rounded ${
                       isDarkMode
                         ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
                         : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -135,22 +135,24 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMo
                   </button>
                 </div>
               ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(account.id);
-                  }}
-                  className={`p-1 rounded-full hover:bg-opacity-10 ${
-                    isDarkMode ? 'hover:bg-white text-gray-300' : 'hover:bg-truefa-dark text-truefa-gray'
-                  }`}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex justify-end mt-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(account.id);
+                    }}
+                    className={`p-1 rounded-full hover:bg-opacity-10 ${
+                      isDarkMode ? 'hover:bg-white text-gray-300' : 'hover:bg-truefa-dark text-truefa-gray'
+                    }`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           ))}
           {filteredAccounts.length === 0 && (
-            <div className={`text-center py-4 ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
+            <div className={`col-span-full text-center py-4 ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
               <p>No accounts match your search</p>
             </div>
           )}
