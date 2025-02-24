@@ -84,6 +84,19 @@ contextBridge.exposeInMainWorld(
     },
     
     /**
+     * Manually trigger a logout
+     * Clears the cleanup timer and triggers cleanup
+     */
+    manualLogout: async () => {
+      try {
+        return await ipcRenderer.invoke('manual-logout');
+      } catch (error) {
+        console.error('Error in manualLogout:', error);
+        throw preserveError(error);
+      }
+    },
+    
+    /**
      * Register theme change callback
      * @param callback - Function to call when theme changes
      * @returns Cleanup function to remove the listener
