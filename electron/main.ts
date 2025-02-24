@@ -115,6 +115,16 @@ function updateMenu() {
             mainWindow?.webContents.send('theme-changed', isDarkMode);
             updateMenu();
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Logout',
+          accelerator: 'CmdOrCtrl+L',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('cleanup-needed');
+            }
+          }
         }
       ]
     }
