@@ -11,6 +11,11 @@ TrueFA is a secure, offline Two-Factor Authentication (2FA) application built wi
 - 🔄 Auto-cleanup after 5 minutes of inactivity
 - 🔍 Search functionality for accounts
 - 🎯 Use without saving accounts (stateless mode)
+- 📥 Import/Export accounts with GPG encryption
+- ✏️ Edit account names and service names
+- 🔑 Change master password anytime
+- 🌓 Dark/Light theme support
+- 📱 Mobile-friendly responsive design
 
 
 ## Development
@@ -108,11 +113,22 @@ truefa/
 - Use the copy button to copy tokens
 - Show/hide tokens for privacy
 - Delete accounts with confirmation
+- Edit account names and service names
+- Import accounts from GPG encrypted files
+- Export accounts to GPG encrypted files
+- Change master password as needed
 
 ### Theme Settings
 - Toggle between light and dark mode
 - Theme preference persists between sessions
 - Access theme toggle in Options menu
+
+### Import/Export
+- Export accounts to encrypted .gpg files
+- Import accounts from encrypted .gpg files
+- Import on fresh install for easy recovery
+- Merge imported accounts with existing ones
+- Secure password protection for imports/exports
 
 ## License
 
