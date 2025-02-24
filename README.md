@@ -6,16 +6,15 @@ TrueFA is a secure, offline Two-Factor Authentication (2FA) application built wi
 
 - 🔒 Completely offline operation
 - 💾 Encrypted local storage with master password
-- 📷 QR code scanning from image files
+- 📷 QR code scanning from screenshots or images
 - 🔐 Secure token storage with AES-256-GCM encryption
 - 🔄 Auto-cleanup after 5 minutes of inactivity
 - 🔍 Search functionality for accounts
 - 🎯 Use without saving accounts (stateless mode)
 - 📥 Import/Export accounts with GPG encryption
-- ✏️ Edit account names and service names
 - 🔑 Change master password anytime
 - 🌓 Dark/Light theme support
-- 📱 Mobile-friendly responsive design
+- 📱 Mobile-friendly design
 
 
 ## Development
@@ -80,7 +79,7 @@ truefa/
 - Automatic data cleanup after inactivity
 
 ### Data Protection
-- No network connectivity required
+- No network connectivity
 - Master password never stored
 - Automatic session termination after 5 minutes
 - Secure memory cleanup on logout
