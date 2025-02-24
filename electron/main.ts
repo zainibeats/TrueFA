@@ -1,5 +1,5 @@
 // Import required Electron modules and Node.js built-ins
-import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nodeCrypto from 'crypto';
@@ -165,6 +165,13 @@ function updateMenu() {
     {
       label: 'File',
       submenu: [
+        {
+          label: 'Export Accounts',
+          accelerator: 'CmdOrCtrl+E',
+          click: async () => {
+            mainWindow?.webContents.send('export-accounts-requested');
+          }
+        },
         {
           label: 'DevTools',
           accelerator: 'F12',
@@ -486,4 +493,43 @@ ipcMain.handle('check-accounts-exist', async () => {
 // Add handler for getting initial theme state
 ipcMain.handle('get-initial-theme', () => {
   return isDarkMode;
+});
+
+// Add handler for exporting accounts
+ipcMain.handle('export-accounts', async (_, { accounts, password }: { accounts: AuthAccount[], password: string }) => {
+  try {
+    // Create simplified export data
+    const exportData = accounts.map(acc => ({
+      issuer: acc.issuer || 'Unknown',
+      secret: acc.secret
+    }));
+    
+    // Convert to pretty JSON
+    const jsonData = JSON.stringify(exportData, null, 2);
+    
+    // Encrypt the JSON data
+    const encryptedData = encryptData(jsonData, password);
+    
+    // Show save dialog
+    const { filePath } = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Export Accounts',
+      defaultPath: path.join(app.getPath('downloads'), 'truefa_export.enc'),
+      filters: [
+        { name: 'Encrypted Files', extensions: ['enc'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (!filePath) {
+      return { success: false, message: 'Export cancelled' };
+    }
+    
+    // Save the encrypted data
+    await fs.promises.writeFile(filePath, encryptedData, 'utf8');
+    
+    return { success: true, message: 'Accounts exported successfully' };
+  } catch (error) {
+    console.error('❌ [Main] Failed to export accounts:', error);
+    throw error;
+  }
 }); 

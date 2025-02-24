@@ -18,6 +18,8 @@ declare global {
       manualLogout: () => Promise<void>;
       checkAccountsExist: () => Promise<boolean>;
       getInitialTheme: () => Promise<boolean>;
+      exportAccounts: (accounts: AuthAccount[], password: string) => Promise<{ success: boolean; message: string }>;
+      onExportAccountsRequested: (callback: () => void) => () => void;
     };
   }
 }
@@ -127,6 +129,26 @@ function App() {
       cleanup();
     };
   }, [password]); // Only re-register when password changes
+
+  /** Export accounts listener */
+  useEffect(() => {
+    // Only register export handler if we have accounts and a password
+    if (!password || savedAccounts.length === 0) return;
+    
+    return window.electronAPI.onExportAccountsRequested(async () => {
+      try {
+        const result = await window.electronAPI.exportAccounts(savedAccounts, password);
+        if (result.success) {
+          // Show success message
+          setError(null);
+        } else {
+          setError(result.message);
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to export accounts');
+      }
+    });
+  }, [savedAccounts, password]);
 
   /** Handles complete logout and state reset */
   const handleLogout = async () => {

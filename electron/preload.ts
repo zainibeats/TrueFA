@@ -132,6 +132,33 @@ contextBridge.exposeInMainWorld(
         console.error('Error in getInitialTheme:', error);
         throw preserveError(error);
       }
+    },
+
+    /**
+     * Export accounts to an encrypted file
+     * @param accounts - Array of accounts to export
+     * @param password - Password to encrypt the export
+     * @returns Promise with success status and message
+     */
+    exportAccounts: async (accounts: any[], password: string) => {
+      try {
+        return await ipcRenderer.invoke('export-accounts', { accounts, password });
+      } catch (error) {
+        console.error('Error in exportAccounts:', error);
+        throw preserveError(error);
+      }
+    },
+
+    /**
+     * Register export accounts request callback
+     * @param callback - Function to call when export is requested
+     * @returns Cleanup function to remove the listener
+     */
+    onExportAccountsRequested: (callback: () => void) => {
+      ipcRenderer.on('export-accounts-requested', () => callback());
+      return () => {
+        ipcRenderer.removeAllListeners('export-accounts-requested');
+      };
     }
   }
 ); 
