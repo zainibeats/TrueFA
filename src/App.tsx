@@ -17,6 +17,7 @@ declare global {
       onThemeChange: (callback: (isDarkMode: boolean) => void) => () => void;
       manualLogout: () => Promise<void>;
       checkAccountsExist: () => Promise<boolean>;
+      getInitialTheme: () => Promise<boolean>;
     };
   }
 }
@@ -47,6 +48,13 @@ function App() {
 
   /** Theme change listener */
   useEffect(() => {
+    // Get initial theme state
+    window.electronAPI.getInitialTheme().then(darkMode => {
+      setIsDarkMode(darkMode);
+      document.body.classList.toggle('dark', darkMode);
+    });
+
+    // Listen for theme changes
     return window.electronAPI.onThemeChange((darkMode) => {
       setIsDarkMode(darkMode);
       document.body.classList.toggle('dark', darkMode);

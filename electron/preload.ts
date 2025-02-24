@@ -119,6 +119,19 @@ contextBridge.exposeInMainWorld(
         console.error('Error in checkAccountsExist:', error);
         throw preserveError(error);
       }
+    },
+
+    /**
+     * Get the initial theme state from main process
+     * @returns Promise<boolean> indicating if dark mode is enabled
+     */
+    getInitialTheme: async () => {
+      try {
+        return await ipcRenderer.invoke('get-initial-theme');
+      } catch (error) {
+        console.error('Error in getInitialTheme:', error);
+        throw preserveError(error);
+      }
     }
   }
 ); 

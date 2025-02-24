@@ -481,4 +481,9 @@ ipcMain.handle('check-accounts-exist', async () => {
     console.log('📭 [Main] Secrets file does not exist');
     return false;
   }
+});
+
+// Add handler for getting initial theme state
+ipcMain.handle('get-initial-theme', () => {
+  return isDarkMode;
 }); 
