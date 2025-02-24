@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Shield, Lock } from 'lucide-react';
 import { TOTPManager } from './lib/crypto';
 import { AuthAccount } from './lib/types';
@@ -16,6 +16,7 @@ declare global {
       onCleanupNeeded: (callback: () => void) => () => void;
       onThemeChange: (callback: (isDarkMode: boolean) => void) => () => void;
       manualLogout: () => Promise<void>;
+      checkAccountsExist: () => Promise<boolean>;
     };
   }
 }
@@ -42,6 +43,7 @@ function App() {
   const [tempAccountToSave, setTempAccountToSave] = useState<AuthAccount | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const isCheckingAccounts = useRef(false);
 
   /** Theme change listener */
   useEffect(() => {
@@ -53,28 +55,27 @@ function App() {
 
   /** Initial secrets check on app load */
   useEffect(() => {
-    const checkForExistingSecrets = async () => {
+    const checkAccounts = async () => {
       try {
-        await window.electronAPI.loadAccounts('');
-        setHasStoredAccounts(false);
+        const hasAccounts = await window.electronAPI.checkAccountsExist();
+        setHasStoredAccounts(hasAccounts);
+        setShowPasswordPrompt(hasAccounts);
+        setIsFirstLoad(false);
       } catch (error) {
-        const isPasswordRequired = error instanceof Error && 
-          (error.name === 'PasswordRequiredError' || error.message.includes('Password required'));
-
-        if (isPasswordRequired) {
-          setHasStoredAccounts(true);
-          setShowPasswordPrompt(true);
-        }
+        console.error('Failed to check for stored accounts:', error);
+        setError(error instanceof Error ? error.message : String(error));
       }
-      setIsFirstLoad(false);
     };
 
-    checkForExistingSecrets();
-  }, []);
+    // Only check on first load
+    if (isFirstLoad) {
+      checkAccounts();
+    }
+  }, []); // Run only once on mount
 
   /** Load saved accounts when password is provided */
   useEffect(() => {
-    if (!password || isFirstLoad) return;
+    if (!password || !hasStoredAccounts) return;
 
     const loadAccounts = async () => {
       try {
@@ -83,14 +84,18 @@ function App() {
         setError(null);
         window.electronAPI.startCleanupTimer();
       } catch (error) {
-        setError('Invalid password or corrupted data');
-        setPassword(null);
-        setShowPasswordPrompt(true);
+        if (error instanceof Error) {
+          setError(error.message);
+          if (error.name === 'IncorrectPasswordError') {
+            setPassword(null);
+            setShowPasswordPrompt(true);
+          }
+        }
       }
     };
 
     loadAccounts();
-  }, [password, isFirstLoad]);
+  }, [password]); // Only depend on password changes
 
   /** Auto-save accounts when they change */
   useEffect(() => {
@@ -108,7 +113,10 @@ function App() {
 
   /** Handles complete logout and state reset */
   const handleLogout = async () => {
+    console.log('🔓 Logging out...');
     await window.electronAPI.manualLogout();
+    
+    // Reset all state
     setPassword(null);
     setCurrentAccount(null);
     setSavedAccounts([]);
@@ -116,16 +124,13 @@ function App() {
     setConfirmPassword('');
     setError(null);
     
-    // Check if there are stored accounts after logout
+    // Check if we have stored accounts and show password prompt if needed
     try {
-      await window.electronAPI.loadAccounts('');
-      setHasStoredAccounts(false);
-      setShowPasswordPrompt(false);
+      const hasAccounts = await window.electronAPI.checkAccountsExist();
+      setHasStoredAccounts(hasAccounts);
+      setShowPasswordPrompt(hasAccounts);
     } catch (error) {
-      const isPasswordRequired = error instanceof Error && 
-        (error.name === 'PasswordRequiredError' || error.message.includes('Password required'));
-      setHasStoredAccounts(isPasswordRequired);
-      setShowPasswordPrompt(isPasswordRequired);
+      console.error('Failed to check for stored accounts:', error);
     }
   };
 
@@ -136,14 +141,22 @@ function App() {
   };
 
   /** Handles saving account with optional password creation */
-  const handleSaveAccount = (accountToSave: AuthAccount) => {
-    setTempAccountToSave(accountToSave);
-    
+  const handleSaveAccount = async (accountToSave: AuthAccount) => {
     if (password) {
-      setSavedAccounts(prev => [...prev, accountToSave]);
+      // If we have a password, save directly
+      const newAccounts = [...savedAccounts, accountToSave];
+      try {
+        await window.electronAPI.saveAccounts(newAccounts, password);
+        setSavedAccounts(newAccounts);
+        setError(null);
+      } catch (error) {
+        setError('Failed to save account');
+      }
       return;
     }
 
+    // No password yet, need to create one
+    setTempAccountToSave(accountToSave);
     setShowPasswordPrompt(true);
   };
 
@@ -154,7 +167,30 @@ function App() {
       return;
     }
 
-    if (!tempAccountToSave) {
+    // Case 1: Creating first account (need password confirmation)
+    if (tempAccountToSave && !hasStoredAccounts) {
+      if (!confirmPassword) {
+        setError('Please confirm your password');
+        return;
+      }
+
+      if (tempPassword !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+
+      setPassword(tempPassword);
+      setShowPasswordPrompt(false);
+      setTempPassword('');
+      setConfirmPassword('');
+      setError(null);
+      setSavedAccounts([tempAccountToSave]);
+      setTempAccountToSave(null);
+      return;
+    }
+
+    // Case 2: Unlocking existing accounts
+    if (hasStoredAccounts) {
       setPassword(tempPassword);
       setShowPasswordPrompt(false);
       setTempPassword('');
@@ -162,23 +198,15 @@ function App() {
       return;
     }
 
-    if (!confirmPassword) {
-      setError('Please confirm your password');
+    // Case 3: Adding account with existing password
+    if (tempAccountToSave && password) {
+      setSavedAccounts(prev => [...prev, tempAccountToSave]);
+      setTempAccountToSave(null);
+      setShowPasswordPrompt(false);
+      setTempPassword('');
+      setError(null);
       return;
     }
-
-    if (tempPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setPassword(tempPassword);
-    setShowPasswordPrompt(false);
-    setTempPassword('');
-    setConfirmPassword('');
-    setError(null);
-    setSavedAccounts(prev => [...prev, tempAccountToSave]);
-    setTempAccountToSave(null);
   };
 
   /** Handles Enter key press for password inputs */
