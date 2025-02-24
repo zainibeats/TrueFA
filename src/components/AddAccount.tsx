@@ -4,32 +4,28 @@ import { TOTPManager } from '../lib/crypto';
 import { parseOTPAuthURL, decodeQRFromImage } from '../lib/qrParser';
 import type { AuthAccount } from '../lib/types';
 
-/**
- * Props interface for the AddAccount component
- * @interface AddAccountProps
- * @property {function} onAdd - Callback function when a new account is added
- * @property {function} onClose - Callback function to close the add account dialog
- * @property {boolean} isDarkMode - Whether dark mode is enabled
- */
+// Props interface for the AddAccount component
+// @interface AddAccountProps
+// @property {function} onAdd - Callback function when a new account is added
+// @property {function} onClose - Callback function to close the add account dialog
+// @property {boolean} isDarkMode - Whether dark mode is enabled
 interface AddAccountProps {
   onAdd: (account: AuthAccount) => void;
   onClose: () => void;
   isDarkMode: boolean;
 }
 
-/**
- * Component for adding new authentication accounts via QR code or manual entry
- * 
- * Features:
- * - QR code scanning from image files
- * - Manual entry with secret key validation
- * - Error handling and validation
- * - Real-time feedback
- * 
- * @component
- * @param {AddAccountProps} props - Component properties
- * @returns {JSX.Element} Rendered add account form
- */
+// Component for adding new authentication accounts via QR code or manual entry
+// 
+// Features:
+// - QR code scanning from image files
+// - Manual entry with secret key validation
+// - Error handling and validation
+// - Real-time feedback
+// 
+// @component
+// @param {AddAccountProps} props - Component properties
+// @returns {JSX.Element} Rendered add account form
 export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
   const [mode, setMode] = useState<'qr' | 'manual'>('qr');
   const [error, setError] = useState('');
@@ -40,12 +36,10 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
   const [manualIssuer, setManualIssuer] = useState('');
   const [manualAccount, setManualAccount] = useState('');
 
-  /**
-   * Handles QR code image file selection and processing
-   * Attempts to decode QR code and extract OTP authentication data
-   * 
-   * @param {React.ChangeEvent<HTMLInputElement>} e - File input change event
-   */
+  // Handles QR code image file selection and processing
+  // Attempts to decode QR code and extract OTP authentication data
+  // 
+  // @param {React.ChangeEvent<HTMLInputElement>} e - File input change event
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -112,13 +106,11 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
     }
   };
 
-  /**
-   * Handles manual account addition
-   * Validates secret key format and creates new account
-   * 
-   * @async
-   * @throws {Error} If secret key validation fails
-   */
+  // Handles manual account addition
+  // Validates secret key format and creates new account
+  // 
+  // @async
+  // @throws {Error} If secret key validation fails
   const handleManualAdd = async () => {
     if (!manualSecret || !manualIssuer) {
       setError('Secret and issuer are required');
