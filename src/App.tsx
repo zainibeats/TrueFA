@@ -29,6 +29,7 @@ declare global {
       updateVaultState: (locked: boolean) => Promise<void>;
       onManualLogout: (callback: () => void) => () => void;
       onChangeMasterPasswordRequested: (callback: () => void) => () => void;
+      showImportDialog: () => Promise<{ filePath: string | null }>;
     };
   }
 }
@@ -63,6 +64,8 @@ function App() {
   const [masterPassword, setMasterPassword] = useState('');
   const [showWelcome, setShowWelcome] = useState(true);
   const [showExportSuccess, setShowExportSuccess] = useState(false);
+  const [showPasswordChangeSuccess, setShowPasswordChangeSuccess] = useState(false);
+  const [showImportSuccess, setShowImportSuccess] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isVerifyingCurrentPassword, setIsVerifyingCurrentPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -168,11 +171,8 @@ function App() {
 
   /** Import accounts listener */
   useEffect(() => {
-    return window.electronAPI.onImportAccountsRequested((filePath) => {
-      setImportFilePath(filePath);
-      setShowPasswordPrompt(true);
-      setIsImporting(true);
-    });
+    // Remove this effect as we're handling the import flow directly
+    return;
   }, []);
 
   /** Manual logout listener */
@@ -303,9 +303,9 @@ function App() {
         setError(null);
         setIsChangingPassword(false);
         setIsVerifyingCurrentPassword(false);
-        // Show success notification
-        setShowExportSuccess(true);
-        setTimeout(() => setShowExportSuccess(false), 2000);
+        // Show success notification for password change
+        setShowPasswordChangeSuccess(true);
+        setTimeout(() => setShowPasswordChangeSuccess(false), 2000);
         // Make sure vault stays unlocked
         await window.electronAPI.updateVaultState(false);
       } catch (error) {
@@ -327,6 +327,13 @@ function App() {
       }
 
       try {
+        // Initialize with empty array first to ensure secrets file is created
+        await window.electronAPI.saveAccounts([], tempPassword);
+        
+        // Then save the first account
+        await window.electronAPI.saveAccounts([tempAccountToSave], tempPassword);
+        
+        // Update all state
         setPassword(tempPassword);
         setShowPasswordPrompt(false);
         setTempPassword('');
@@ -334,9 +341,12 @@ function App() {
         setError(null);
         setSavedAccounts([tempAccountToSave]);
         setTempAccountToSave(null);
+        setHasStoredAccounts(true);
+        
         // Notify main process that vault is unlocked
         await window.electronAPI.updateVaultState(false);
       } catch (error) {
+        console.error('Failed to save first account:', error);
         setError('Failed to save account');
       }
       return;
@@ -393,10 +403,17 @@ function App() {
             // No existing accounts, just use the imported ones
             setSavedAccounts(result.accounts);
             setPassword(tempPassword);
+            setHasStoredAccounts(true);
           }
           setShowPasswordPrompt(false);
           setTempPassword('');
+          setConfirmPassword('');
           setError(null);
+          // Show success notification for import
+          setShowImportSuccess(true);
+          setTimeout(() => setShowImportSuccess(false), 2000);
+          // Make sure vault stays unlocked
+          await window.electronAPI.updateVaultState(false);
         } else {
           setError(result.message);
         }
@@ -502,8 +519,34 @@ function App() {
          * 4. Exporting accounts
          */
         <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-truefa-dark' : 'bg-truefa-light'}`}>
+          {/* Fixed header matching home page */}
+          <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
+            <div className="container mx-auto px-4 h-12 flex items-center justify-between max-w-6xl">
+              {/* Left side - empty to match home layout */}
+              <div className="w-1/3" />
+              
+              {/* Center title with subtle background - matching home page exactly */}
+              <div className="flex-shrink-0">
+                <h1 className={`text-lg font-bold px-4 py-1 rounded-lg ${
+                  isDarkMode 
+                    ? 'text-white bg-gray-700/50' 
+                    : 'text-truefa-dark bg-gray-100/50'
+                }`}>
+                  {isExporting ? 'Export Accounts' 
+                    : isImporting ? 'Import Accounts' 
+                    : isChangingPassword 
+                      ? isVerifyingCurrentPassword ? 'Enter New Password' : 'Verify Current Password'
+                    : 'TrueFA'}
+                </h1>
+              </div>
+
+              {/* Right side - empty to match home layout */}
+              <div className="w-1/3" />
+            </div>
+          </header>
+
           {/* Password form container */}
-          <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6`}>
+          <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6 mt-12`}>
             {/* Back button for export/import */}
             {(isExporting || isImporting) && (
               <button
@@ -521,17 +564,10 @@ function App() {
               </button>
             )}
             
-            {/* App logo and title */}
-            <div className="flex items-center justify-center mb-6">
+            {/* App logo */}
+            <div className="flex flex-col items-center mb-8">
               <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
-            <h1 className={`text-center text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} mb-6`}>
-              {isExporting ? 'Export Accounts' 
-                : isImporting ? 'Import Accounts' 
-                : isChangingPassword 
-                  ? isVerifyingCurrentPassword ? 'Enter New Password' : 'Verify Current Password'
-                : 'TrueFA'}
-            </h1>
             
             {/* Password form fields */}
             <div className="space-y-4">
@@ -542,71 +578,134 @@ function App() {
                 </div>
               )}
 
-              {/* Password input fields */}
-              <div>
-                <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                  {isExporting ? 'Export Password' 
-                    : isImporting ? 'Import Password' 
-                    : isChangingPassword
-                      ? isVerifyingCurrentPassword ? 'New Master Password' : 'Current Master Password'
-                    : hasStoredAccounts ? 'Master Password' 
-                    : 'Create Master Password'}
-                </label>
-                <input
-                  type="password"
-                  value={tempPassword}
-                  onChange={(e) => setTempPassword(e.target.value)}
-                  onKeyDown={handlePasswordKeyDown}
-                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
-                    isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
-                  }`}
-                  placeholder={isExporting ? "Create export password" 
-                    : isImporting ? "Enter import password" 
-                    : isChangingPassword 
-                      ? isVerifyingCurrentPassword ? "Enter your new master password" 
-                      : "Enter your current master password"
-                    : hasStoredAccounts ? "Enter your master password" 
-                    : "Create a strong password"}
-                  autoFocus
-                />
-              </div>
-
-              {/* Show confirmation field for new password, exports, or first-time setup */}
-              {(hasStoredAccounts || isExporting || (isChangingPassword && isVerifyingCurrentPassword)) && (
-                <div>
-                  <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                    {isChangingPassword ? 'Confirm New Password' : 'Confirm Password'}
-                  </label>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    onKeyDown={handlePasswordKeyDown}
-                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
-                      isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
-                    }`}
-                    placeholder={isChangingPassword ? "Confirm your new password" : "Confirm your password"}
-                  />
+              {/* Single password field for login */}
+              {!isChangingPassword && (
+                <div className="space-y-4">
+                  <div>
+                    <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                      {isExporting ? 'Export Password' 
+                        : isImporting ? 'Import Password'
+                        : hasStoredAccounts ? 'Master Password' 
+                        : 'Create Master Password'}
+                    </label>
+                    <input
+                      type="password"
+                      value={tempPassword}
+                      onChange={(e) => setTempPassword(e.target.value)}
+                      onKeyDown={handlePasswordKeyDown}
+                      className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
+                        isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                      }`}
+                      placeholder={isExporting ? "Create export password" 
+                        : isImporting ? "Enter import password"
+                        : hasStoredAccounts ? "Enter your master password" 
+                        : "Create a strong password"}
+                      autoFocus
+                    />
+                  </div>
+                  
+                  {/* Show confirmation field for new account creation */}
+                  {(!hasStoredAccounts || isExporting) && (
+                    <div>
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                        Confirm Password
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onKeyDown={handlePasswordKeyDown}
+                        className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
+                          isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                        }`}
+                        placeholder="Confirm your password"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Submit button and help text */}
+              {/* Password change flow */}
+              {isChangingPassword && (
+                <>
+                  {!isVerifyingCurrentPassword ? (
+                    /* Step 1: Current password verification */
+                    <div>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-4`}>
+                        To change your master password, first verify your current password.
+                        This helps ensure the security of your accounts.
+                      </p>
+                      <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                        Current Master Password
+                      </label>
+                      <input
+                        type="password"
+                        value={tempPassword}
+                        onChange={(e) => setTempPassword(e.target.value)}
+                        onKeyDown={handlePasswordKeyDown}
+                        className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
+                          isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                        }`}
+                        placeholder="Enter your current master password"
+                        autoFocus
+                      />
+                    </div>
+                  ) : (
+                    /* Step 2: New password entry */
+                    <div className="space-y-4">
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-4`}>
+                        Enter and confirm your new master password.
+                        Make sure to choose a strong, unique password that you'll remember.
+                      </p>
+                      <div>
+                        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                          New Master Password
+                        </label>
+                        <input
+                          type="password"
+                          value={tempPassword}
+                          onChange={(e) => setTempPassword(e.target.value)}
+                          className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
+                            isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                          }`}
+                          placeholder="Enter your new master password"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          onKeyDown={handlePasswordKeyDown}
+                          className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
+                            isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                          }`}
+                          placeholder="Confirm your new master password"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Submit button */}
               <button
                 onClick={handlePasswordSubmit}
                 className={`w-full py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 ${
                   isDarkMode ? 'bg-gray-700' : ''
                 }`}
               >
-                {isExporting ? 'Export' : isImporting ? 'Import' : isChangingPassword ? 'Change' : hasStoredAccounts ? 'Unlock' : 'Create Password'}
+                {isExporting ? 'Export' 
+                  : isImporting ? 'Import' 
+                  : isChangingPassword 
+                    ? isVerifyingCurrentPassword ? 'Change Password' : 'Continue'
+                  : hasStoredAccounts ? 'Unlock' 
+                  : 'Create Password'}
               </button>
-
-              {isChangingPassword && (
-                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  {isVerifyingCurrentPassword 
-                    ? 'Enter your new master password to encrypt all accounts'
-                    : 'Enter your current master password to continue'}
-                </p>
-              )}
             </div>
           </div>
         </div>
@@ -642,19 +741,29 @@ function App() {
                       }`}
                       title="Export Accounts"
                     >
-                      <Download className="w-5 h-5" />
+                      <Upload className="w-5 h-5" />
                       <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                         Export Accounts
                       </span>
                     </button>
                     <button
-                      onClick={() => {
-                        setShowPasswordPrompt(true);
-                        setIsImporting(true);
-                        setIsExporting(false);
-                        setTempPassword('');
-                        setConfirmPassword('');
-                        setError(null);
+                      onClick={async () => {
+                        try {
+                          // Show file dialog first
+                          const result = await window.electronAPI.showImportDialog();
+                          if (result.filePath) {
+                            // Then show password prompt
+                            setImportFilePath(result.filePath);
+                            setShowPasswordPrompt(true);
+                            setIsImporting(true);
+                            setIsExporting(false);
+                            setTempPassword('');
+                            setConfirmPassword('');
+                            setError(null);
+                          }
+                        } catch (error) {
+                          console.error('Failed to show import dialog:', error);
+                        }
                       }}
                       className={`group relative p-2 rounded-md ${
                         isDarkMode 
@@ -663,7 +772,7 @@ function App() {
                       }`}
                       title="Import Accounts"
                     >
-                      <Upload className="w-5 h-5" />
+                      <Download className="w-5 h-5" />
                       <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
                         Import Accounts
                       </span>
@@ -698,13 +807,29 @@ function App() {
             </div>
           </header>
 
-          {/* Success notification */}
+          {/* Success notifications */}
           {showExportSuccess && (
             <div className="fixed top-14 right-4 flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-out">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>Export successful!</span>
+            </div>
+          )}
+          {showPasswordChangeSuccess && (
+            <div className="fixed top-14 right-4 flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-out">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Password changed successfully!</span>
+            </div>
+          )}
+          {showImportSuccess && (
+            <div className="fixed top-14 right-4 flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-out">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Import successful!</span>
             </div>
           )}
 
