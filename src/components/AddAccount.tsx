@@ -168,6 +168,12 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleManualAdd();
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-truefa-dark bg-opacity-50 flex items-center justify-center p-4">
       <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full`}>
@@ -250,6 +256,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
                   type="text"
                   value={manualSecret}
                   onChange={(e) => setManualSecret(e.target.value.toUpperCase())}
+                  onKeyDown={handleKeyDown}
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
@@ -264,6 +271,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
                   type="text"
                   value={manualIssuer}
                   onChange={(e) => setManualIssuer(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
@@ -278,6 +286,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
                   type="text"
                   value={manualAccount}
                   onChange={(e) => setManualAccount(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
