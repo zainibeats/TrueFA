@@ -22,25 +22,41 @@ export class TOTPManager {
       
       // Convert time to buffer
       const timeBuffer = Buffer.alloc(8);
-      timeBuffer.writeBigInt64BE(BigInt(timeWindow));
+      let bigIntTime = BigInt(timeWindow);
+      for (let i = 7; i >= 0; i--) {
+        timeBuffer[i] = Number(bigIntTime & BigInt(0xff));
+        bigIntTime >>= BigInt(8);
+      }
       
       // Convert secret to buffer
       const secretBuffer = this.base32ToBuffer(secret);
       
-      // Generate HMAC
-      const hmac = nodeCrypto.createHmac('sha1', secretBuffer);
-      hmac.update(timeBuffer);
-      const hmacResult = hmac.digest();
+      // Use Web Crypto API for HMAC
+      const key = await crypto.subtle.importKey(
+        'raw',
+        secretBuffer,
+        { name: 'HMAC', hash: 'SHA-1' },
+        false,
+        ['sign']
+      );
+      
+      const hmacResult = await crypto.subtle.sign(
+        'HMAC',
+        key,
+        timeBuffer
+      );
+      
+      const hmacArray = new Uint8Array(hmacResult);
       
       // Get offset
-      const offset = hmacResult[hmacResult.length - 1] & 0xf;
+      const offset = hmacArray[hmacArray.length - 1] & 0xf;
       
       // Generate 4-byte code
       const code = (
-        ((hmacResult[offset] & 0x7f) << 24) |
-        ((hmacResult[offset + 1] & 0xff) << 16) |
-        ((hmacResult[offset + 2] & 0xff) << 8) |
-        (hmacResult[offset + 3] & 0xff)
+        ((hmacArray[offset] & 0x7f) << 24) |
+        ((hmacArray[offset + 1] & 0xff) << 16) |
+        ((hmacArray[offset + 2] & 0xff) << 8) |
+        (hmacArray[offset + 3] & 0xff)
       ) % 1000000;
       
       // Pad with zeros if needed
@@ -79,7 +95,7 @@ export class TOTPManager {
    * @param base32 - Base32 encoded string
    * @returns Uint8Array of decoded data
    */
-  private static base32ToBuffer(base32: string): Buffer {
+  private static base32ToBuffer(base32: string): Uint8Array {
     // Base32 character set (RFC 4648)
     const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     
@@ -103,7 +119,7 @@ export class TOTPManager {
       bytes[i] = parseInt(byteStr, 2);
     }
     
-    return Buffer.from(bytes);
+    return bytes;
   }
 }
 
