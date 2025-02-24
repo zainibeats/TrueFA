@@ -1,4 +1,5 @@
 import jsQR from 'jsqr';
+import type { OTPAuthData } from './types';
 
 /**
  * Interface representing a parsed OTP Auth URL
@@ -24,52 +25,64 @@ interface OTPAuthURL {
  * - otpauth://totp/label?secret=...&issuer=...
  * 
  * @param {string} url - The OTP Auth URL to parse
- * @returns {OTPAuthURL | null} Parsed URL components or null if invalid
+ * @returns {OTPAuthData | null} Parsed OTP data or null if invalid
  * @example
  * const result = parseOTPAuthURL('otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example');
  */
-export function parseOTPAuthURL(url: string): OTPAuthURL | null {
+export function parseOTPAuthURL(url: string): OTPAuthData | null {
   try {
-    console.log('Attempting to parse URL:', url);
-    const uri = new URL(url);
-    console.log('Protocol:', uri.protocol);
-    console.log('Pathname:', uri.pathname);
-    console.log('Search params:', uri.search);
+    const parsedUrl = new URL(url);
+    
+    // Validate URL protocol and path
+    if (parsedUrl.protocol !== 'otpauth:') return null;
+    if (!parsedUrl.pathname.startsWith('//totp/')) return null;
 
-    if (uri.protocol !== 'otpauth:') {
-      console.log('Invalid protocol:', uri.protocol);
+    // Extract account and issuer from path
+    const pathParts = parsedUrl.pathname.slice(7).split(':');
+    let issuer = '';
+    let account = '';
+
+    if (pathParts.length === 2) {
+      [issuer, account] = pathParts;
+    } else if (pathParts.length === 1) {
+      account = pathParts[0];
+    } else {
       return null;
     }
 
-    const params = new URLSearchParams(uri.search);
+    // Get parameters from URL
+    const params = parsedUrl.searchParams;
     const secret = params.get('secret');
-    const issuerParam = params.get('issuer');
-    
-    // Path format: /totp/label or /totp/issuer:label
-    const pathParts = uri.pathname.split('/').filter(Boolean);
-    const type = pathParts[0];
-    const labelPart = pathParts[1] || '';
-    
-    // Label might be in format "issuer:account" or just "account"
-    const [labelIssuer, account] = labelPart.split(':').map(s => s.trim());
-    const issuer = issuerParam || (account ? labelIssuer : '') || '';
-    const finalAccount = account || labelIssuer || 'Unknown';
+    const urlIssuer = params.get('issuer');
 
-    console.log('Parsed components:', { type, labelPart, secret, issuer, account: finalAccount });
+    // Validate required fields
+    if (!secret) return null;
     
-    if (!secret || !type) {
-      console.log('Missing required fields:', { secret: !!secret, type: !!type });
-      return null;
+    // Use URL issuer parameter if path issuer is not available
+    if (!issuer && urlIssuer) {
+      issuer = urlIssuer;
     }
+
+    // Clean up issuer and account
+    issuer = decodeURIComponent(issuer || urlIssuer || 'Unknown');
+    account = decodeURIComponent(account || 'Unknown');
+
+    // Parse optional parameters
+    const algorithm = params.get('algorithm') || 'SHA1';
+    const digits = parseInt(params.get('digits') || '6', 10);
+    const period = parseInt(params.get('period') || '30', 10);
 
     return {
-      type,
-      secret,
+      type: 'totp',
+      account,
       issuer,
-      account: finalAccount
+      secret,
+      algorithm,
+      digits,
+      period
     };
   } catch (error) {
-    console.error('Error parsing OTP Auth URL:', error);
+    console.error('Failed to parse OTP Auth URL:', error);
     return null;
   }
 }
@@ -89,22 +102,25 @@ export function parseOTPAuthURL(url: string): OTPAuthURL | null {
  */
 export async function decodeQRFromImage(imageData: ImageData): Promise<string | null> {
   try {
-    console.log('Attempting to decode QR code from image:', {
-      width: imageData.width,
-      height: imageData.height,
-      hasData: !!imageData.data
-    });
-    
     const code = jsQR(imageData.data, imageData.width, imageData.height);
-    console.log('QR code decode result:', code ? 'Found code' : 'No code found');
-    
-    if (code) {
-      console.log('Decoded QR data:', code.data);
-    }
-    
     return code?.data || null;
   } catch (error) {
-    console.error('Error decoding QR code:', error);
+    console.error('Failed to decode QR code:', error);
     return null;
   }
+}
+
+/**
+ * Validates a TOTP secret key
+ * Checks if the key is a valid Base32 string
+ * 
+ * @param {string} secret - The secret key to validate
+ * @returns {boolean} Whether the secret is valid
+ */
+export function validateTOTPSecret(secret: string): boolean {
+  // Remove spaces and convert to uppercase
+  const cleanSecret = secret.replace(/\s/g, '').toUpperCase();
+  
+  // Check if the secret is a valid Base32 string
+  return /^[A-Z2-7]+=*$/.test(cleanSecret);
 } 
