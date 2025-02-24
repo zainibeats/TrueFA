@@ -166,19 +166,34 @@ function updateMenu() {
       label: 'File',
       submenu: [
         {
+          label: 'Import Accounts',
+          accelerator: 'CmdOrCtrl+I',
+          click: async () => {
+            const { filePaths } = await dialog.showOpenDialog(mainWindow!, {
+              title: 'Import Accounts',
+              filters: [
+                { name: 'GPG Encrypted Files', extensions: ['gpg'] },
+                { name: 'All Files', extensions: ['*'] }
+              ],
+              properties: ['openFile']
+            });
+            
+            if (filePaths.length > 0) {
+              mainWindow?.webContents.send('import-accounts-requested', filePaths[0]);
+            }
+          }
+        },
+        {
           label: 'Export Accounts',
           accelerator: 'CmdOrCtrl+E',
           click: async () => {
             mainWindow?.webContents.send('export-accounts-requested');
           }
         },
-        {
-          label: 'DevTools',
-          accelerator: 'F12',
-          click: () => mainWindow?.webContents.toggleDevTools()
-        },
+        { type: 'separator' },
         {
           label: 'Logout',
+          accelerator: 'CmdOrCtrl+L',
           click: async () => {
             if (cleanupTimer) {
               clearTimeout(cleanupTimer);
@@ -205,20 +220,6 @@ function updateMenu() {
             await saveTheme(isDarkMode);
             mainWindow?.webContents.send('theme-changed', isDarkMode);
             updateMenu();
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Logout',
-          accelerator: 'CmdOrCtrl+L',
-          click: () => {
-            if (mainWindow) {
-              if (cleanupTimer) {
-                clearTimeout(cleanupTimer);
-                cleanupTimer = null;
-              }
-              mainWindow.webContents.send('cleanup-needed');
-            }
           }
         }
       ]
@@ -507,15 +508,12 @@ ipcMain.handle('export-accounts', async (_, { accounts, password }: { accounts: 
     // Convert to pretty JSON
     const jsonData = JSON.stringify(exportData, null, 2);
     
-    // Encrypt the JSON data
-    const encryptedData = encryptData(jsonData, password);
-    
     // Show save dialog
     const { filePath } = await dialog.showSaveDialog(mainWindow!, {
       title: 'Export Accounts',
-      defaultPath: path.join(app.getPath('downloads'), 'truefa_export.enc'),
+      defaultPath: path.join(app.getPath('downloads'), 'truefa_export.gpg'),
       filters: [
-        { name: 'Encrypted Files', extensions: ['enc'] },
+        { name: 'GPG Encrypted Files', extensions: ['gpg'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -523,13 +521,112 @@ ipcMain.handle('export-accounts', async (_, { accounts, password }: { accounts: 
     if (!filePath) {
       return { success: false, message: 'Export cancelled' };
     }
-    
-    // Save the encrypted data
-    await fs.promises.writeFile(filePath, encryptedData, 'utf8');
-    
-    return { success: true, message: 'Accounts exported successfully' };
+
+    // Create a temporary file for the JSON data
+    const tmpDir = app.getPath('temp');
+    const tmpFile = path.join(tmpDir, `truefa_export_${Date.now()}.json`);
+    await fs.promises.writeFile(tmpFile, jsonData, 'utf8');
+
+    try {
+      // Use GPG to encrypt the file (symmetric)
+      await new Promise<void>((resolve, reject) => {
+        const gpg = require('child_process').spawn('gpg', [
+          '--batch',
+          '--yes',
+          '--passphrase-fd', '0',  // Read password from stdin
+          '-c',  // Symmetric encryption
+          '--output', filePath,
+          tmpFile
+        ]);
+
+        gpg.stdin.write(password);
+        gpg.stdin.end();
+
+        gpg.on('close', (code: number) => {
+          if (code === 0) resolve();
+          else reject(new Error(`GPG encryption failed with code ${code}`));
+        });
+
+        gpg.on('error', reject);
+      });
+
+      return { success: true, message: 'Accounts exported successfully' };
+    } finally {
+      // Clean up temporary file
+      try {
+        await fs.promises.unlink(tmpFile);
+      } catch (error) {
+        console.error('Failed to clean up temporary file:', error);
+      }
+    }
   } catch (error) {
     console.error('❌ [Main] Failed to export accounts:', error);
+    throw error;
+  }
+});
+
+// Add handler for importing accounts
+ipcMain.handle('import-accounts', async (_, { filePath, password }: { filePath: string, password: string }) => {
+  try {
+    // Create a temporary file for the decrypted data
+    const tmpDir = app.getPath('temp');
+    const tmpFile = path.join(tmpDir, `truefa_import_${Date.now()}.json`);
+
+    try {
+      // Use GPG to decrypt the file
+      await new Promise<void>((resolve, reject) => {
+        const gpg = require('child_process').spawn('gpg', [
+          '--batch',
+          '--yes',
+          '--passphrase-fd', '0',  // Read password from stdin
+          '-d',  // Decrypt
+          '--output', tmpFile,
+          filePath
+        ]);
+
+        gpg.stdin.write(password);
+        gpg.stdin.end();
+
+        gpg.on('close', (code: number) => {
+          if (code === 0) resolve();
+          else reject(new Error('Incorrect password or invalid file format'));
+        });
+
+        gpg.on('error', reject);
+      });
+
+      // Read and parse the decrypted data
+      const decryptedData = await fs.promises.readFile(tmpFile, 'utf8');
+      const importedAccounts = JSON.parse(decryptedData);
+
+      // Validate the imported data structure
+      if (!Array.isArray(importedAccounts) || 
+          !importedAccounts.every(acc => typeof acc.issuer === 'string' && typeof acc.secret === 'string')) {
+        throw new Error('Invalid import file format');
+      }
+
+      // Convert to full account objects
+      const accounts = importedAccounts.map(acc => ({
+        id: nodeCrypto.randomUUID(),
+        name: acc.issuer, // Use issuer as name if no separate name exists
+        secret: acc.secret,
+        issuer: acc.issuer
+      }));
+
+      return { success: true, accounts, message: 'Accounts imported successfully' };
+    } finally {
+      // Clean up temporary file
+      try {
+        await fs.promises.unlink(tmpFile);
+      } catch (error) {
+        console.error('Failed to clean up temporary file:', error);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [Main] Failed to import accounts:', error);
+    if (error instanceof Error && error.message.includes('Incorrect password')) {
+      return { success: false, accounts: [], message: 'Incorrect password for import file' };
+    }
     throw error;
   }
 }); 

@@ -159,6 +159,33 @@ contextBridge.exposeInMainWorld(
       return () => {
         ipcRenderer.removeAllListeners('export-accounts-requested');
       };
+    },
+
+    /**
+     * Import accounts from an encrypted file
+     * @param filePath - Path to the encrypted file
+     * @param password - Password to decrypt the file
+     * @returns Promise with imported accounts and status
+     */
+    importAccounts: async (filePath: string, password: string) => {
+      try {
+        return await ipcRenderer.invoke('import-accounts', { filePath, password });
+      } catch (error) {
+        console.error('Error in importAccounts:', error);
+        throw preserveError(error);
+      }
+    },
+
+    /**
+     * Register import accounts request callback
+     * @param callback - Function to call when import is requested
+     * @returns Cleanup function to remove the listener
+     */
+    onImportAccountsRequested: (callback: (filePath: string) => void) => {
+      ipcRenderer.on('import-accounts-requested', (_, filePath) => callback(filePath));
+      return () => {
+        ipcRenderer.removeAllListeners('import-accounts-requested');
+      };
     }
   }
 ); 

@@ -20,6 +20,12 @@ declare global {
       getInitialTheme: () => Promise<boolean>;
       exportAccounts: (accounts: AuthAccount[], password: string) => Promise<{ success: boolean; message: string }>;
       onExportAccountsRequested: (callback: () => void) => () => void;
+      importAccounts: (filePath: string, password: string) => Promise<{
+        success: boolean;
+        accounts: AuthAccount[];
+        message: string;
+      }>;
+      onImportAccountsRequested: (callback: (filePath: string) => void) => () => void;
     };
   }
 }
@@ -47,6 +53,9 @@ function App() {
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const isCheckingAccounts = useRef(false);
+  const [importFilePath, setImportFilePath] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   /** Theme change listener */
   useEffect(() => {
@@ -132,23 +141,29 @@ function App() {
 
   /** Export accounts listener */
   useEffect(() => {
-    // Only register export handler if we have accounts and a password
-    if (!password || savedAccounts.length === 0) return;
+    // Only register export handler if we have accounts
+    if (savedAccounts.length === 0) return;
     
     return window.electronAPI.onExportAccountsRequested(async () => {
-      try {
-        const result = await window.electronAPI.exportAccounts(savedAccounts, password);
-        if (result.success) {
-          // Show success message
-          setError(null);
-        } else {
-          setError(result.message);
-        }
-      } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to export accounts');
-      }
+      // Prompt for export password
+      setTempPassword('');
+      setConfirmPassword('');
+      setError(null);
+      setIsImporting(false);
+      setShowPasswordPrompt(true);
+      setTempAccountToSave(null);
+      setIsExporting(true);
     });
-  }, [savedAccounts, password]);
+  }, [savedAccounts]);
+
+  /** Import accounts listener */
+  useEffect(() => {
+    return window.electronAPI.onImportAccountsRequested((filePath) => {
+      setImportFilePath(filePath);
+      setShowPasswordPrompt(true);
+      setIsImporting(true);
+    });
+  }, []);
 
   /** Handles complete logout and state reset */
   const handleLogout = async () => {
@@ -199,10 +214,72 @@ function App() {
     setShowPasswordPrompt(true);
   };
 
-  /** Handles password submission for unlock or creation */
+  /** Handles password submission for unlock, creation, or import/export */
   const handlePasswordSubmit = async () => {
     if (!tempPassword) {
       setError('Please enter your password');
+      return;
+    }
+
+    // Case: Exporting accounts
+    if (isExporting) {
+      if (!confirmPassword) {
+        setError('Please confirm your export password');
+        return;
+      }
+
+      if (tempPassword !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+
+      try {
+        const result = await window.electronAPI.exportAccounts(savedAccounts, tempPassword);
+        if (result.success) {
+          setShowPasswordPrompt(false);
+          setTempPassword('');
+          setConfirmPassword('');
+          setError(null);
+        } else {
+          setError(result.message);
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to export accounts');
+      }
+      setIsExporting(false);
+      return;
+    }
+
+    // Case: Importing accounts
+    if (isImporting && importFilePath) {
+      try {
+        const result = await window.electronAPI.importAccounts(importFilePath, tempPassword);
+        if (result.success) {
+          // If we already have accounts and a password, merge them
+          if (password && savedAccounts.length > 0) {
+            const newAccounts = [...savedAccounts];
+            result.accounts.forEach(importedAcc => {
+              if (!newAccounts.some(acc => acc.secret === importedAcc.secret)) {
+                newAccounts.push(importedAcc);
+              }
+            });
+            setSavedAccounts(newAccounts);
+          } else {
+            // No existing accounts, just use the imported ones
+            setSavedAccounts(result.accounts);
+            setPassword(tempPassword);
+          }
+          setShowPasswordPrompt(false);
+          setTempPassword('');
+          setError(null);
+        } else {
+          setError(result.message);
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to import accounts');
+      }
+      setImportFilePath(null);
+      setIsImporting(false);
       return;
     }
 
@@ -287,12 +364,14 @@ function App() {
 
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark bg-truefa-dark' : 'bg-truefa-light'}`}>
-      {showPasswordPrompt && (hasStoredAccounts || tempAccountToSave) ? (
+      {showPasswordPrompt && (hasStoredAccounts || tempAccountToSave || isImporting || isExporting) ? (
         /**
          * Password prompt overlay
          * Shown when:
          * 1. Accessing stored accounts
          * 2. Creating first password when saving an account
+         * 3. Importing accounts
+         * 4. Exporting accounts
          */
         <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-truefa-dark' : 'bg-truefa-light'}`}>
           {/* Password form container */}
@@ -302,7 +381,7 @@ function App() {
               <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
             <h1 className={`text-center text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} mb-6`}>
-              TrueFA
+              {isExporting ? 'Export Accounts' : isImporting ? 'Import Accounts' : 'TrueFA'}
             </h1>
             
             {/* Password form fields */}
@@ -317,7 +396,7 @@ function App() {
               {/* Password input fields */}
               <div>
                 <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                  {hasStoredAccounts ? 'Master Password' : 'Create Master Password'}
+                  {isExporting ? 'Export Password' : isImporting ? 'Import Password' : hasStoredAccounts ? 'Master Password' : 'Create Master Password'}
                 </label>
                 <input
                   type="password"
@@ -327,12 +406,12 @@ function App() {
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
-                  placeholder={hasStoredAccounts ? "Enter your master password" : "Create a strong password"}
+                  placeholder={isExporting ? "Create export password" : isImporting ? "Enter import password" : hasStoredAccounts ? "Enter your master password" : "Create a strong password"}
                   autoFocus
                 />
               </div>
 
-              {!hasStoredAccounts && (
+              {(!hasStoredAccounts || isExporting) && (
                 <div>
                   <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                     Confirm Password
@@ -357,10 +436,18 @@ function App() {
                   isDarkMode ? 'bg-gray-700' : ''
                 }`}
               >
-                {hasStoredAccounts ? 'Unlock' : 'Create Password'}
+                {isExporting ? 'Export' : isImporting ? 'Import' : hasStoredAccounts ? 'Unlock' : 'Create Password'}
               </button>
 
-              {hasStoredAccounts ? (
+              {isExporting ? (
+                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
+                  This password will be used to encrypt your exported accounts
+                </p>
+              ) : isImporting ? (
+                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
+                  Enter the password used to encrypt this file
+                </p>
+              ) : hasStoredAccounts ? (
                 <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
                   Enter your master password to access your saved accounts
                 </p>
@@ -384,30 +471,23 @@ function App() {
           {/* Fixed header with app controls */}
           <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
             <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
-              {/* Logout button */}
-              <button
-                onClick={handleLogout}
-                className={`flex items-center space-x-1 px-2 py-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none text-sm`}
-                title="Logout"
-              >
-                <Lock className="w-4 h-4" />
-              </button>
-
               {/* App title */}
               <h1 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`}>
                 TrueFA
               </h1>
 
               {/* Add account button */}
-              <button
-                onClick={() => setShowAddModal(true)}
-                className={`flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
-                  isDarkMode ? 'bg-gray-700' : ''
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add</span>
-              </button>
+              <div className="ml-auto">
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className={`flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
+                    isDarkMode ? 'bg-gray-700' : ''
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add</span>
+                </button>
+              </div>
             </div>
           </header>
 
