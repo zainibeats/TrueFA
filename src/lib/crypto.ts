@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import * as nodeCrypto from 'crypto';
 
 /**
  * TOTP (Time-based One-Time Password) implementation
@@ -15,8 +16,39 @@ export class TOTPManager {
    * @returns Promise<string> 6-digit OTP
    */
   static async generateToken(secret: string): Promise<string> {
-    const counter = Math.floor(Date.now() / 1000 / this.PERIOD);
-    return this.generateTOTP(secret, counter);
+    try {
+      // Get current time window
+      const timeWindow = Math.floor(Date.now() / 1000 / this.PERIOD);
+      
+      // Convert time to buffer
+      const timeBuffer = Buffer.alloc(8);
+      timeBuffer.writeBigInt64BE(BigInt(timeWindow));
+      
+      // Convert secret to buffer
+      const secretBuffer = this.base32ToBuffer(secret);
+      
+      // Generate HMAC
+      const hmac = nodeCrypto.createHmac('sha1', secretBuffer);
+      hmac.update(timeBuffer);
+      const hmacResult = hmac.digest();
+      
+      // Get offset
+      const offset = hmacResult[hmacResult.length - 1] & 0xf;
+      
+      // Generate 4-byte code
+      const code = (
+        ((hmacResult[offset] & 0x7f) << 24) |
+        ((hmacResult[offset + 1] & 0xff) << 16) |
+        ((hmacResult[offset + 2] & 0xff) << 8) |
+        (hmacResult[offset + 3] & 0xff)
+      ) % 1000000;
+      
+      // Pad with zeros if needed
+      return code.toString().padStart(6, '0');
+    } catch (error) {
+      console.error('Failed to generate TOTP:', error);
+      throw error;
+    }
   }
 
   /**
@@ -24,7 +56,9 @@ export class TOTPManager {
    * @returns number of seconds until next token
    */
   static getRemainingTime(): number {
-    return this.PERIOD - (Math.floor(Date.now() / 1000) % this.PERIOD);
+    const timeWindow = Math.floor(Date.now() / 1000 / this.PERIOD);
+    const nextWindow = (timeWindow + 1) * this.PERIOD;
+    return nextWindow - Math.floor(Date.now() / 1000);
   }
 
   /**
@@ -33,49 +67,11 @@ export class TOTPManager {
    * @returns boolean indicating if secret is valid Base32
    */
   static validateSecret(secret: string): boolean {
-    try {
-      // Check if it's a valid base32 string (A-Z, 2-7)
-      return /^[A-Z2-7]+=*$/.test(secret);
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Generates TOTP using HMAC-SHA1
-   * @param secret - Base32 encoded secret key
-   * @param counter - Time-based counter value
-   * @returns Promise<string> 6-digit OTP
-   */
-  private static async generateTOTP(secret: string, counter: number): Promise<string> {
-    // Convert secret to buffer and prepare counter
-    const key = this.base32ToBuffer(secret);
-    const counterBuffer = Buffer.alloc(8);
-    counterBuffer.writeBigInt64BE(BigInt(counter));
-
-    // Create HMAC key for signing
-    const hmac = await crypto.subtle.importKey(
-      'raw',
-      key,
-      { name: 'HMAC', hash: 'SHA-1' },
-      false,
-      ['sign']
-    );
-
-    // Generate HMAC signature
-    const signature = await crypto.subtle.sign('HMAC', hmac, counterBuffer);
-    const hash = new Uint8Array(signature);
+    // Remove spaces and convert to uppercase
+    const cleanSecret = secret.replace(/\s/g, '').toUpperCase();
     
-    // Dynamic truncation (RFC 4226)
-    const offset = hash[hash.length - 1] & 0xf;
-    const binary = ((hash[offset] & 0x7f) << 24) |
-                  ((hash[offset + 1] & 0xff) << 16) |
-                  ((hash[offset + 2] & 0xff) << 8) |
-                  (hash[offset + 3] & 0xff);
-
-    // Generate 6-digit token
-    const otp = binary % Math.pow(10, this.DIGITS);
-    return otp.toString().padStart(this.DIGITS, '0');
+    // Check if the secret is a valid Base32 string
+    return /^[A-Z2-7]+=*$/.test(cleanSecret);
   }
 
   /**
@@ -83,25 +79,31 @@ export class TOTPManager {
    * @param base32 - Base32 encoded string
    * @returns Uint8Array of decoded data
    */
-  private static base32ToBuffer(base32: string): Uint8Array {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    let bits = 0;
-    let value = 0;
-    const result = [];
-
-    // Process each character, converting to 5-bit chunks
-    for (const c of base32.replace(/=+$/, '')) {
-      value = (value << 5) | alphabet.indexOf(c);
-      bits += 5;
-
-      // Extract complete bytes when available
-      if (bits >= 8) {
-        result.push((value >>> (bits - 8)) & 0xff);
-        bits -= 8;
+  private static base32ToBuffer(base32: string): Buffer {
+    // Base32 character set (RFC 4648)
+    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    
+    // Remove padding and convert to uppercase
+    const cleanBase32 = base32.replace(/=+$/, '').toUpperCase();
+    
+    // Convert to binary string
+    let bits = '';
+    for (const char of cleanBase32) {
+      const value = charset.indexOf(char);
+      if (value === -1) {
+        throw new Error('Invalid Base32 character');
       }
+      bits += value.toString(2).padStart(5, '0');
     }
-
-    return new Uint8Array(result);
+    
+    // Convert binary string to buffer
+    const bytes = new Uint8Array(Math.floor(bits.length / 8));
+    for (let i = 0; i < bytes.length; i++) {
+      const byteStr = bits.slice(i * 8, (i + 1) * 8);
+      bytes[i] = parseInt(byteStr, 2);
+    }
+    
+    return Buffer.from(bytes);
   }
 }
 
