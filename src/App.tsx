@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Shield, Lock } from 'lucide-react';
+import { Plus, Shield, Lock, Download, Upload } from 'lucide-react';
 import { TOTPManager } from './lib/crypto';
 import { AuthAccount } from './lib/types';
 import { TokenDisplay } from './components/TokenDisplay';
@@ -26,6 +26,9 @@ declare global {
         message: string;
       }>;
       onImportAccountsRequested: (callback: (filePath: string) => void) => () => void;
+      updateVaultState: (locked: boolean) => Promise<void>;
+      onManualLogout: (callback: () => void) => () => void;
+      onChangeMasterPasswordRequested: (callback: () => void) => () => void;
     };
   }
 }
@@ -56,6 +59,13 @@ function App() {
   const [importFilePath, setImportFilePath] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [masterPassword, setMasterPassword] = useState('');
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [showExportSuccess, setShowExportSuccess] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isVerifyingCurrentPassword, setIsVerifyingCurrentPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   /** Theme change listener */
   useEffect(() => {
@@ -165,18 +175,32 @@ function App() {
     });
   }, []);
 
+  /** Manual logout listener */
+  useEffect(() => {
+    return window.electronAPI.onManualLogout(() => {
+      handleLogout();
+    });
+  }, []);
+
   /** Handles complete logout and state reset */
   const handleLogout = async () => {
     console.log('🔓 Logging out...');
     await window.electronAPI.manualLogout();
+    // Notify main process that vault is locked
+    await window.electronAPI.updateVaultState(true);
     
     // Reset all state
     setPassword(null);
     setCurrentAccount(null);
     setSavedAccounts([]);
+    setShowPasswordPrompt(true); // Show password prompt immediately if we have accounts
     setTempPassword('');
     setConfirmPassword('');
     setError(null);
+    setTempAccountToSave(null);
+    setIsExporting(false);
+    setIsImporting(false);
+    setImportFilePath(null);
     
     // Check if we have stored accounts and show password prompt if needed
     try {
@@ -196,8 +220,8 @@ function App() {
 
   /** Handles saving account with optional password creation */
   const handleSaveAccount = async (accountToSave: AuthAccount) => {
+    // If we have a password, save directly
     if (password) {
-      // If we have a password, save directly
       const newAccounts = [...savedAccounts, accountToSave];
       try {
         await window.electronAPI.saveAccounts(newAccounts, password);
@@ -209,15 +233,112 @@ function App() {
       return;
     }
 
-    // No password yet, need to create one
-    setTempAccountToSave(accountToSave);
-    setShowPasswordPrompt(true);
+    // No password yet (fresh install), need to create one
+    if (!hasStoredAccounts) {
+      setTempAccountToSave(accountToSave);
+      setShowPasswordPrompt(true);
+      setTempPassword('');
+      setConfirmPassword('');
+      setError(null);
+      setIsImporting(false);
+      setIsExporting(false);
+      return;
+    }
+
+    // This case should never happen (logged in without password), but handle it just in case
+    console.error('Inconsistent state: No password but accounts exist');
+    setError('Please log in again');
+    handleLogout();
   };
 
   /** Handles password submission for unlock, creation, or import/export */
   const handlePasswordSubmit = async () => {
     if (!tempPassword) {
       setError('Please enter your password');
+      return;
+    }
+
+    // Case: Changing master password - step 1: verify current password
+    if (isChangingPassword && !isVerifyingCurrentPassword) {
+      try {
+        // Verify current password by attempting to load accounts
+        await window.electronAPI.loadAccounts(tempPassword);
+        // If successful, move to new password entry
+        setIsVerifyingCurrentPassword(true);
+        setNewPassword(tempPassword);
+        setTempPassword('');
+        setConfirmPassword('');
+        setError(null);
+      } catch (error) {
+        setError('Incorrect current password');
+      }
+      return;
+    }
+
+    // Case: Changing master password - step 2: set new password
+    if (isChangingPassword && isVerifyingCurrentPassword) {
+      if (!tempPassword || !confirmPassword) {
+        setError('Please enter and confirm your new password');
+        return;
+      }
+
+      if (tempPassword !== confirmPassword) {
+        setError('New passwords do not match');
+        return;
+      }
+
+      if (tempPassword === newPassword) {
+        setError('New password must be different from current password');
+        return;
+      }
+
+      try {
+        // Save accounts with new password
+        await window.electronAPI.saveAccounts(savedAccounts, tempPassword);
+        setPassword(tempPassword);
+        setShowPasswordPrompt(false);
+        setTempPassword('');
+        setConfirmPassword('');
+        setNewPassword('');
+        setError(null);
+        setIsChangingPassword(false);
+        setIsVerifyingCurrentPassword(false);
+        // Show success notification
+        setShowExportSuccess(true);
+        setTimeout(() => setShowExportSuccess(false), 2000);
+        // Make sure vault stays unlocked
+        await window.electronAPI.updateVaultState(false);
+      } catch (error) {
+        setError('Failed to change master password');
+      }
+      return;
+    }
+
+    // Case 1: Creating first account (need password confirmation)
+    if (tempAccountToSave && !hasStoredAccounts) {
+      if (!confirmPassword) {
+        setError('Please confirm your password');
+        return;
+      }
+
+      if (tempPassword !== confirmPassword) {
+        setError('Passwords do not match');
+        return;
+      }
+
+      try {
+        setPassword(tempPassword);
+        setShowPasswordPrompt(false);
+        setTempPassword('');
+        setConfirmPassword('');
+        setError(null);
+        setSavedAccounts([tempAccountToSave]);
+        setTempAccountToSave(null);
+        // Notify main process that vault is unlocked
+        await window.electronAPI.updateVaultState(false);
+      } catch (error) {
+        setError('Failed to save account');
+      }
       return;
     }
 
@@ -240,6 +361,10 @@ function App() {
           setTempPassword('');
           setConfirmPassword('');
           setError(null);
+          // Show success notification
+          setShowExportSuccess(true);
+          // Hide after 2 seconds
+          setTimeout(() => setShowExportSuccess(false), 2000);
         } else {
           setError(result.message);
         }
@@ -255,8 +380,8 @@ function App() {
       try {
         const result = await window.electronAPI.importAccounts(importFilePath, tempPassword);
         if (result.success) {
-          // If we already have accounts and a password, merge them
           if (password && savedAccounts.length > 0) {
+            // Merge with existing accounts if we have them
             const newAccounts = [...savedAccounts];
             result.accounts.forEach(importedAcc => {
               if (!newAccounts.some(acc => acc.secret === importedAcc.secret)) {
@@ -283,34 +408,25 @@ function App() {
       return;
     }
 
-    // Case 1: Creating first account (need password confirmation)
-    if (tempAccountToSave && !hasStoredAccounts) {
-      if (!confirmPassword) {
-        setError('Please confirm your password');
-        return;
-      }
-
-      if (tempPassword !== confirmPassword) {
-        setError('Passwords do not match');
-        return;
-      }
-
-      setPassword(tempPassword);
-      setShowPasswordPrompt(false);
-      setTempPassword('');
-      setConfirmPassword('');
-      setError(null);
-      setSavedAccounts([tempAccountToSave]);
-      setTempAccountToSave(null);
-      return;
-    }
-
     // Case 2: Unlocking existing accounts
     if (hasStoredAccounts) {
-      setPassword(tempPassword);
-      setShowPasswordPrompt(false);
-      setTempPassword('');
-      setError(null);
+      try {
+        // Verify the password by attempting to load accounts
+        const loadedAccounts = await window.electronAPI.loadAccounts(tempPassword);
+        setPassword(tempPassword);
+        setSavedAccounts(loadedAccounts);
+        setShowPasswordPrompt(false);
+        setTempPassword('');
+        setError(null);
+        // Make sure we notify main process that vault is unlocked
+        console.log('🔓 Unlocking vault...');
+        await window.electronAPI.updateVaultState(false);
+        console.log('🔓 Vault unlocked, menu should update');
+      } catch (error) {
+        console.error('❌ Error unlocking vault:', error);
+        setError('Incorrect password');
+        setPassword(null);
+      }
       return;
     }
 
@@ -362,6 +478,18 @@ function App() {
     }
   };
 
+  // Add event listener for password change request
+  useEffect(() => {
+    const cleanup = window.electronAPI.onChangeMasterPasswordRequested(() => {
+      setShowPasswordPrompt(true);
+      setIsChangingPassword(true);
+      setTempPassword('');
+      setConfirmPassword('');
+      setError(null);
+    });
+    return cleanup;
+  }, []);
+
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark bg-truefa-dark' : 'bg-truefa-light'}`}>
       {showPasswordPrompt && (hasStoredAccounts || tempAccountToSave || isImporting || isExporting) ? (
@@ -376,12 +504,33 @@ function App() {
         <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-truefa-dark' : 'bg-truefa-light'}`}>
           {/* Password form container */}
           <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6`}>
+            {/* Back button for export/import */}
+            {(isExporting || isImporting) && (
+              <button
+                onClick={() => {
+                  setShowPasswordPrompt(false);
+                  setIsExporting(false);
+                  setIsImporting(false);
+                  setTempPassword('');
+                  setConfirmPassword('');
+                  setError(null);
+                }}
+                className={`absolute left-4 top-4 text-sm ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                ← Back
+              </button>
+            )}
+            
             {/* App logo and title */}
             <div className="flex items-center justify-center mb-6">
               <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
             <h1 className={`text-center text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} mb-6`}>
-              {isExporting ? 'Export Accounts' : isImporting ? 'Import Accounts' : 'TrueFA'}
+              {isExporting ? 'Export Accounts' 
+                : isImporting ? 'Import Accounts' 
+                : isChangingPassword 
+                  ? isVerifyingCurrentPassword ? 'Enter New Password' : 'Verify Current Password'
+                : 'TrueFA'}
             </h1>
             
             {/* Password form fields */}
@@ -396,35 +545,47 @@ function App() {
               {/* Password input fields */}
               <div>
                 <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                  {isExporting ? 'Export Password' : isImporting ? 'Import Password' : hasStoredAccounts ? 'Master Password' : 'Create Master Password'}
+                  {isExporting ? 'Export Password' 
+                    : isImporting ? 'Import Password' 
+                    : isChangingPassword
+                      ? isVerifyingCurrentPassword ? 'New Master Password' : 'Current Master Password'
+                    : hasStoredAccounts ? 'Master Password' 
+                    : 'Create Master Password'}
                 </label>
                 <input
                   type="password"
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
                   onKeyDown={handlePasswordKeyDown}
-                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                  className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
-                  placeholder={isExporting ? "Create export password" : isImporting ? "Enter import password" : hasStoredAccounts ? "Enter your master password" : "Create a strong password"}
+                  placeholder={isExporting ? "Create export password" 
+                    : isImporting ? "Enter import password" 
+                    : isChangingPassword 
+                      ? isVerifyingCurrentPassword ? "Enter your new master password" 
+                      : "Enter your current master password"
+                    : hasStoredAccounts ? "Enter your master password" 
+                    : "Create a strong password"}
                   autoFocus
                 />
               </div>
 
-              {(!hasStoredAccounts || isExporting) && (
+              {/* Show confirmation field for new password, exports, or first-time setup */}
+              {(hasStoredAccounts || isExporting || (isChangingPassword && isVerifyingCurrentPassword)) && (
                 <div>
                   <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                    Confirm Password
+                    {isChangingPassword ? 'Confirm New Password' : 'Confirm Password'}
                   </label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     onKeyDown={handlePasswordKeyDown}
-                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                    className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-[#C9E7F8] focus:border-transparent ${
                       isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                     }`}
-                    placeholder="Confirm your password"
+                    placeholder={isChangingPassword ? "Confirm your new password" : "Confirm your password"}
                   />
                 </div>
               )}
@@ -436,24 +597,14 @@ function App() {
                   isDarkMode ? 'bg-gray-700' : ''
                 }`}
               >
-                {isExporting ? 'Export' : isImporting ? 'Import' : hasStoredAccounts ? 'Unlock' : 'Create Password'}
+                {isExporting ? 'Export' : isImporting ? 'Import' : isChangingPassword ? 'Change' : hasStoredAccounts ? 'Unlock' : 'Create Password'}
               </button>
 
-              {isExporting ? (
+              {isChangingPassword && (
                 <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  This password will be used to encrypt your exported accounts
-                </p>
-              ) : isImporting ? (
-                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  Enter the password used to encrypt this file
-                </p>
-              ) : hasStoredAccounts ? (
-                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  Enter your master password to access your saved accounts
-                </p>
-              ) : (
-                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  This password will be used to encrypt your saved accounts
+                  {isVerifyingCurrentPassword 
+                    ? 'Enter your new master password to encrypt all accounts'
+                    : 'Enter your current master password to continue'}
                 </p>
               )}
             </div>
@@ -470,18 +621,74 @@ function App() {
         <>
           {/* Fixed header with app controls */}
           <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
-            <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
-              {/* App title */}
-              <h1 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`}>
-                TrueFA
-              </h1>
+            <div className="container mx-auto px-4 h-12 flex items-center justify-between max-w-6xl">
+              {/* Left side buttons */}
+              <div className="flex items-center space-x-2 w-1/3">
+                {savedAccounts.length > 0 && (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowPasswordPrompt(true);
+                        setIsExporting(true);
+                        setIsImporting(false);
+                        setTempPassword('');
+                        setConfirmPassword('');
+                        setError(null);
+                      }}
+                      className={`group relative p-2 rounded-md ${
+                        isDarkMode 
+                          ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                      title="Export Accounts"
+                    >
+                      <Download className="w-5 h-5" />
+                      <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        Export Accounts
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowPasswordPrompt(true);
+                        setIsImporting(true);
+                        setIsExporting(false);
+                        setTempPassword('');
+                        setConfirmPassword('');
+                        setError(null);
+                      }}
+                      className={`group relative p-2 rounded-md ${
+                        isDarkMode 
+                          ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                      title="Import Accounts"
+                    >
+                      <Upload className="w-5 h-5" />
+                      <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                        Import Accounts
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
 
-              {/* Add account button */}
-              <div className="ml-auto">
+              {/* Center title with subtle background */}
+              <div className="flex-shrink-0">
+                <h1 className={`text-lg font-bold px-4 py-1 rounded-lg ${
+                  isDarkMode 
+                    ? 'text-white bg-gray-700/50' 
+                    : 'text-truefa-dark bg-gray-100/50'
+                }`}>
+                  TrueFA
+                </h1>
+              </div>
+
+              {/* Right side button */}
+              <div className="flex items-center justify-end w-1/3">
                 <button
                   onClick={() => setShowAddModal(true)}
-                  className={`flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
-                    isDarkMode ? 'bg-gray-700' : ''
+                  className={`flex items-center space-x-1 px-3 py-1.5 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
+                    isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : ''
                   }`}
                 >
                   <Plus className="w-4 h-4" />
@@ -490,6 +697,16 @@ function App() {
               </div>
             </div>
           </header>
+
+          {/* Success notification */}
+          {showExportSuccess && (
+            <div className="fixed top-14 right-4 flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-out">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span>Export successful!</span>
+            </div>
+          )}
 
           {/* Main content area */}
           <div className="pt-14 pb-2 px-2 min-h-screen max-w-7xl mx-auto">
