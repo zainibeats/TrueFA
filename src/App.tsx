@@ -108,8 +108,17 @@ function App() {
 
   /** Cleanup handler for security timeout */
   useEffect(() => {
-    return window.electronAPI.onCleanupNeeded(handleLogout);
-  }, []);
+    // Only register cleanup handler if we have a password set
+    if (!password) return;
+    
+    console.log('🔒 Registering cleanup handler');
+    const cleanup = window.electronAPI.onCleanupNeeded(handleLogout);
+    
+    return () => {
+      console.log('🔓 Removing cleanup handler');
+      cleanup();
+    };
+  }, [password]); // Only re-register when password changes
 
   /** Handles complete logout and state reset */
   const handleLogout = async () => {
