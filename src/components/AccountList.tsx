@@ -2,15 +2,13 @@ import React, { useState } from 'react';
 import { Trash2, Search } from 'lucide-react';
 import type { AuthAccount } from '../lib/types';
 
-/**
- * Props interface for the AccountList component
- * @interface AccountListProps
- * @property {AuthAccount[]} accounts - Array of authentication accounts to display
- * @property {string | undefined} selectedId - ID of the currently selected account
- * @property {function} onSelect - Callback function when an account is selected
- * @property {function} onDelete - Callback function when an account is deleted
- * @property {boolean} isDarkMode - Indicates whether the component is in dark mode
- */
+// Props interface for the AccountList component
+// @interface AccountListProps
+// @property {AuthAccount[]} accounts - Array of authentication accounts to display
+// @property {string | undefined} selectedId - ID of the currently selected account
+// @property {function} onSelect - Callback function when an account is selected
+// @property {function} onDelete - Callback function when an account is deleted
+// @property {boolean} isDarkMode - Indicates whether the component is in dark mode
 interface AccountListProps {
   accounts: AuthAccount[];
   selectedId?: string;
@@ -19,20 +17,18 @@ interface AccountListProps {
   isDarkMode?: boolean;
 }
 
-/**
- * Renders a list of authentication accounts with selection and deletion capabilities
- * 
- * Features:
- * - Displays a message when no accounts are present
- * - Shows account issuer and name for each entry
- * - Highlights selected account
- * - Provides delete functionality with hover state
- * - Responsive design with smooth transitions
- * 
- * @component
- * @param {AccountListProps} props - Component properties
- * @returns {JSX.Element} Rendered account list or empty state message
- */
+// Renders a list of authentication accounts with selection and deletion capabilities
+// 
+// Features:
+// - Displays a message when no accounts are present
+// - Shows account issuer and name for each entry
+// - Highlights selected account
+// - Provides delete functionality with hover state
+// - Responsive design with smooth transitions
+// 
+// @component
+// @param {AccountListProps} props - Component properties
+// @returns {JSX.Element} Rendered account list or empty state message
 export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMode = false }: AccountListProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -96,7 +92,7 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMo
         </div>
       </div>
       <div className="p-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-20">
           {filteredAccounts.map((account) => (
             <div
               key={account.id}
