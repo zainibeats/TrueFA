@@ -25,7 +25,7 @@ TrueFA is a secure, offline Two-Factor Authentication (2FA) application built wi
 
 ```bash
 # Clone the repository
-git clone https://github.com/zainibeats/truefa.git
+git clone -b node.js https://github.com/zainibeats/truefa.git
 cd truefa
 
 # Install dependencies
