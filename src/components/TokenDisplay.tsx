@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Copy, Check, Save, Lock, Eye, EyeOff } from 'lucide-react';
+import { RefreshCw, Copy, Check, Save, Lock, Eye, EyeOff, X, Edit2 } from 'lucide-react';
 import { TOTPManager } from '../lib/crypto';
 import type { AuthAccount } from '../lib/types';
 
-/**
- * Props interface for the TokenDisplay component
- * @interface TokenDisplayProps
- * @property {AuthAccount} account - The authentication account to display tokens for
- * @property {function} [onSave] - Optional callback function when account details are saved
- * @property {boolean} [isSaved=false] - Whether the account is saved in storage
- * @property {boolean} [isDarkMode=false] - Whether the component is in dark mode
- */
+// Props interface for the TokenDisplay component
+// @interface TokenDisplayProps
+// @property {AuthAccount} account - The authentication account to display tokens for
+// @property {function} [onSave] - Optional callback function when account details are saved
+// @property {boolean} [isSaved=false] - Whether the account is saved in storage
+// @property {boolean} [isDarkMode=false] - Whether the component is in dark mode
 interface TokenDisplayProps {
   account: AuthAccount;
   onSave?: (account: AuthAccount) => void;
@@ -18,33 +16,31 @@ interface TokenDisplayProps {
   isDarkMode?: boolean;
 }
 
-/**
- * Component for displaying and managing TOTP tokens for an authentication account
- * 
- * Features:
- * - Real-time token generation and display
- * - Countdown timer for token validity
- * - Copy to clipboard functionality
- * - Account name editing and saving
- * - Responsive design with visual feedback
- * 
- * @component
- * @param {TokenDisplayProps} props - Component properties
- * @returns {JSX.Element} Rendered token display
- */
+// Component for displaying and managing TOTP tokens for an authentication account
+// 
+// Features:
+// - Real-time token generation and display
+// - Countdown timer for token validity
+// - Copy to clipboard functionality
+// - Account name editing and saving
+// - Responsive design with visual feedback
+// 
+// @component
+// @param {TokenDisplayProps} props - Component properties
+// @returns {JSX.Element} Rendered token display
 export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = false }: TokenDisplayProps) {
   const [token, setToken] = useState('');
   const [remainingTime, setRemainingTime] = useState(30);
   const [copied, setCopied] = useState(false);
   const [showSavePrompt, setShowSavePrompt] = useState(false);
-  const [accountName, setAccountName] = useState(account.name);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedIssuer, setEditedIssuer] = useState(account.issuer);
+  const [editedName, setEditedName] = useState(account.name);
   const [showCode, setShowCode] = useState(true);
 
-  /**
-   * Effect hook for managing token generation and countdown timer
-   * Sets up intervals for updating token and remaining time
-   * Cleans up intervals on unmount or when secret changes
-   */
+  // Effect hook for managing token generation and countdown timer
+  // Sets up intervals for updating token and remaining time
+  // Cleans up intervals on unmount or when secret changes
   useEffect(() => {
     let mounted = true;
 
@@ -76,11 +72,9 @@ export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = fa
     };
   }, [account.secret]);
 
-  /**
-   * Handles copying the current token to clipboard
-   * Shows visual feedback when copied
-   * @async
-   */
+  // Handles copying the current token to clipboard
+  // Shows visual feedback when copied
+  // @async
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(token);
@@ -92,16 +86,14 @@ export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = fa
     }
   };
 
-  /**
-   * Handles saving updated account details
-   * Updates account name and triggers onSave callback
-   */
+  // Handles saving updated account details
+  // Updates account name and triggers onSave callback
   const handleSave = () => {
     if (!onSave) return;
     
     const updatedAccount = {
       ...account,
-      name: accountName
+      name: editedName
     };
     onSave(updatedAccount);
     setShowSavePrompt(false);
@@ -111,16 +103,107 @@ export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = fa
   const formattedToken = token ? `${token.slice(0, 3)} ${token.slice(3)}` : '';
   const maskedToken = token ? `••• •••` : '';
 
+  // Update local state when account prop changes
+  useEffect(() => {
+    setEditedIssuer(account.issuer);
+    setEditedName(account.name);
+  }, [account]);
+
   return (
     <>
       <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg h-full`}>
         <div className="h-full flex flex-col p-3">
           <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>{account.issuer}</h2>
-              <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>{account.name}</p>
+            <div className="flex-grow">
+              {isEditing ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className={`block text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                      Service Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editedIssuer}
+                      onChange={(e) => setEditedIssuer(e.target.value)}
+                      className={`w-full p-1 text-base border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                        isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                      }`}
+                      placeholder="e.g., Google, GitHub"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-xs font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
+                      Account Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className={`w-full p-1 text-sm border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
+                        isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
+                      }`}
+                      placeholder="e.g., user@example.com"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h2 className={`text-base font-semibold ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>{account.issuer}</h2>
+                  <p className={`text-xs ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>{account.name}</p>
+                </>
+              )}
             </div>
-            {!isSaved && onSave && (
+            {isSaved ? (
+              <div className="flex items-center space-x-2">
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (onSave && (editedIssuer !== account.issuer || editedName !== account.name)) {
+                          onSave({
+                            ...account,
+                            issuer: editedIssuer,
+                            name: editedName
+                          });
+                        }
+                        setIsEditing(false);
+                      }}
+                      className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600"
+                      title="Save changes"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditedIssuer(account.issuer);
+                        setEditedName(account.name);
+                        setIsEditing(false);
+                      }}
+                      className={`p-1.5 rounded-lg ${
+                        isDarkMode 
+                          ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                      title="Cancel"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className={`p-1.5 rounded-lg ${
+                      isDarkMode 
+                        ? 'text-gray-300 hover:bg-gray-700' 
+                        : 'text-truefa-gray hover:bg-gray-100'
+                    }`}
+                    title="Edit account"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ) : (
               <button
                 onClick={() => setShowSavePrompt(true)}
                 className="flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-xs"
@@ -196,8 +279,8 @@ export function TokenDisplay({ account, onSave, isSaved = false, isDarkMode = fa
                 </label>
                 <input
                   type="text"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
