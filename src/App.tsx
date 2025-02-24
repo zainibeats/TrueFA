@@ -222,10 +222,19 @@ function App() {
   const handleSaveAccount = async (accountToSave: AuthAccount) => {
     // If we have a password, save directly
     if (password) {
-      const newAccounts = [...savedAccounts, accountToSave];
+      // Check if this is an update to an existing account
+      const existingIndex = savedAccounts.findIndex(acc => acc.id === accountToSave.id);
+      const newAccounts = existingIndex >= 0
+        ? savedAccounts.map(acc => acc.id === accountToSave.id ? accountToSave : acc)
+        : [...savedAccounts, accountToSave];
+
       try {
         await window.electronAPI.saveAccounts(newAccounts, password);
         setSavedAccounts(newAccounts);
+        // If we're updating the current account, update it
+        if (currentAccount?.id === accountToSave.id) {
+          setCurrentAccount(accountToSave);
+        }
         setError(null);
       } catch (error) {
         setError('Failed to save account');
@@ -419,9 +428,17 @@ function App() {
         }
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to import accounts');
+        // Don't reset state on error if we're already logged in
+        if (!password) {
+          setImportFilePath(null);
+          setIsImporting(false);
+        }
       }
-      setImportFilePath(null);
-      setIsImporting(false);
+      // Only reset these states if import was successful
+      if (!error) {
+        setImportFilePath(null);
+        setIsImporting(false);
+      }
       return;
     }
 
@@ -723,61 +740,60 @@ function App() {
             <div className="container mx-auto px-4 h-12 flex items-center justify-between max-w-6xl">
               {/* Left side buttons */}
               <div className="flex items-center space-x-2 w-1/3">
-                {savedAccounts.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => {
+                {/* Show import button always, export only when we have accounts */}
+                <button
+                  onClick={async () => {
+                    try {
+                      // Show file dialog first
+                      const result = await window.electronAPI.showImportDialog();
+                      if (result.filePath) {
+                        // Then show password prompt
+                        setImportFilePath(result.filePath);
                         setShowPasswordPrompt(true);
-                        setIsExporting(true);
-                        setIsImporting(false);
+                        setIsImporting(true);
+                        setIsExporting(false);
                         setTempPassword('');
                         setConfirmPassword('');
                         setError(null);
-                      }}
-                      className={`group relative p-2 rounded-md ${
-                        isDarkMode 
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                      }`}
-                      title="Export Accounts"
-                    >
-                      <Upload className="w-5 h-5" />
-                      <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        Export Accounts
-                      </span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        try {
-                          // Show file dialog first
-                          const result = await window.electronAPI.showImportDialog();
-                          if (result.filePath) {
-                            // Then show password prompt
-                            setImportFilePath(result.filePath);
-                            setShowPasswordPrompt(true);
-                            setIsImporting(true);
-                            setIsExporting(false);
-                            setTempPassword('');
-                            setConfirmPassword('');
-                            setError(null);
-                          }
-                        } catch (error) {
-                          console.error('Failed to show import dialog:', error);
-                        }
-                      }}
-                      className={`group relative p-2 rounded-md ${
-                        isDarkMode 
-                          ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                      }`}
-                      title="Import Accounts"
-                    >
-                      <Download className="w-5 h-5" />
-                      <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                        Import Accounts
-                      </span>
-                    </button>
-                  </>
+                      }
+                    } catch (error) {
+                      console.error('Failed to show import dialog:', error);
+                    }
+                  }}
+                  className={`group relative p-2 rounded-md ${
+                    isDarkMode 
+                      ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title="Import Accounts"
+                >
+                  <Download className="w-5 h-5" />
+                  <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                    Import Accounts
+                  </span>
+                </button>
+                {savedAccounts.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setShowPasswordPrompt(true);
+                      setIsExporting(true);
+                      setIsImporting(false);
+                      setTempPassword('');
+                      setConfirmPassword('');
+                      setError(null);
+                    }}
+                    className={`group relative p-2 rounded-md ${
+                      isDarkMode 
+                        ? 'text-gray-300 hover:text-white hover:bg-gray-700' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                    title="Export Accounts"
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span className="absolute left-0 top-full mt-1 px-2 py-1 bg-black/75 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                      Export Accounts
+                    </span>
+                  </button>
                 )}
               </div>
 
