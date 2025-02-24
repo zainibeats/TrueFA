@@ -98,6 +98,29 @@ const secureThemeData = {
   }
 };
 
+let isVaultLocked = true;
+let hasMasterPassword = false;
+
+// Add debug logging to track state changes
+function updateMenuState(locked: boolean) {
+  console.log('🔒 Menu State Update:', { locked });
+  isVaultLocked = locked;
+  updateMenu();
+  // Log full menu state after update
+  const currentMenu = Menu.getApplicationMenu()?.items.map(item => ({
+    label: item.label,
+    visible: item.visible
+  }));
+  console.log('📋 Menu After Update:', currentMenu);
+}
+
+// Change from 'on' to 'handle' for async operation
+ipcMain.handle('update-vault-state', async (_event, locked: boolean) => {
+  console.log('🔒 Received vault state update:', { locked });
+  updateMenuState(locked);
+  return true; // Acknowledge receipt
+});
+
 /**
  * Creates and configures the main application window
  * Sets up window properties, loads content, and configures menu
@@ -135,6 +158,7 @@ function createWindow() {
     });
   }
 
+  updateMenuState(true);
   updateMenu();
 }
 
@@ -159,38 +183,47 @@ async function saveTheme(darkMode: boolean) {
   }
 }
 
-// Update the application menu
 function updateMenu() {
+  console.log('🔄 Updating menu, vault locked:', isVaultLocked);
+  
   const template: MenuItemConstructorOptions[] = [
     {
-      label: 'File',
+      label: 'TrueFA',
       submenu: [
         {
-          label: 'Import Accounts',
-          accelerator: 'CmdOrCtrl+I',
+          label: isDarkMode ? 'Light Mode' : 'Dark Mode',
+          accelerator: 'CmdOrCtrl+D',
           click: async () => {
-            const { filePaths } = await dialog.showOpenDialog(mainWindow!, {
-              title: 'Import Accounts',
-              filters: [
-                { name: 'GPG Encrypted Files', extensions: ['gpg'] },
-                { name: 'All Files', extensions: ['*'] }
-              ],
-              properties: ['openFile']
-            });
-            
-            if (filePaths.length > 0) {
-              mainWindow?.webContents.send('import-accounts-requested', filePaths[0]);
-            }
+            isDarkMode = !isDarkMode;
+            await saveTheme(isDarkMode);
+            mainWindow?.webContents.send('theme-changed', isDarkMode);
+            updateMenu();
           }
         },
+        { type: 'separator' as const },
         {
-          label: 'Export Accounts',
-          accelerator: 'CmdOrCtrl+E',
-          click: async () => {
-            mainWindow?.webContents.send('export-accounts-requested');
+          label: 'Quit',
+          accelerator: process.platform === 'darwin' ? 'Command+Q' : 'Alt+F4',
+          click: () => app.quit()
+        }
+      ]
+    }
+  ];
+
+  // Add Options menu when vault is unlocked
+  if (!isVaultLocked) {
+    console.log('📌 Adding Options menu (vault unlocked)');
+    template.push({
+      label: 'Options',
+      submenu: [
+        {
+          label: 'Change Master Password',
+          accelerator: 'CmdOrCtrl+P',
+          click: () => {
+            mainWindow?.webContents.send('change-master-password-requested');
           }
         },
-        { type: 'separator' },
+        { type: 'separator' as const },
         {
           label: 'Logout',
           accelerator: 'CmdOrCtrl+L',
@@ -199,33 +232,14 @@ function updateMenu() {
               clearTimeout(cleanupTimer);
               cleanupTimer = null;
             }
-            mainWindow.webContents.send('cleanup-needed');
-          }
-        },
-        { type: 'separator' },
-        {
-          label: 'Exit',
-          accelerator: process.platform === 'darwin' ? 'Command+Q' : 'Alt+F4',
-          click: () => app.quit()
-        }
-      ]
-    },
-    {
-      label: 'Options',
-      submenu: [
-        {
-          label: isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode',
-          click: async () => {
-            isDarkMode = !isDarkMode;
-            await saveTheme(isDarkMode);
-            mainWindow?.webContents.send('theme-changed', isDarkMode);
-            updateMenu();
+            mainWindow?.webContents.send('manual-logout');
           }
         }
       ]
-    }
-  ];
+    });
+  }
 
+  console.log('📋 Menu template:', template.map(i => i.label));
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
@@ -484,9 +498,11 @@ ipcMain.handle('check-accounts-exist', async () => {
   try {
     await fs.promises.access(SECRETS_FILE);
     console.log('✅ [Main] Secrets file exists');
+    hasMasterPassword = true;
     return true;
   } catch (error) {
     console.log('📭 [Main] Secrets file does not exist');
+    hasMasterPassword = false;
     return false;
   }
 });
