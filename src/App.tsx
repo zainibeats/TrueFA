@@ -6,7 +6,7 @@ import { TokenDisplay } from './components/TokenDisplay';
 import { AddAccount } from './components/AddAccount';
 import { AccountList } from './components/AccountList';
 
-// Add TypeScript declarations for Electron API
+// Electron API type declarations
 declare global {
   interface Window {
     electronAPI: {
@@ -15,104 +15,74 @@ declare global {
       startCleanupTimer: () => Promise<void>;
       onCleanupNeeded: (callback: () => void) => () => void;
       onThemeChange: (callback: (isDarkMode: boolean) => void) => () => void;
+      manualLogout: () => Promise<void>;
     };
   }
 }
 
+/**
+ * Main application component handling authentication accounts and TOTP generation
+ * Manages account storage, password protection, and theme preferences
+ */
 function App() {
+  // Account and UI state
   const [savedAccounts, setSavedAccounts] = useState<AuthAccount[]>([]);
   const [currentAccount, setCurrentAccount] = useState<AuthAccount | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  
+  // Password and security state
   const [password, setPassword] = useState<string | null>(null);
   const [showPasswordPrompt, setShowPasswordPrompt] = useState(false);
   const [tempPassword, setTempPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [hasStoredAccounts, setHasStoredAccounts] = useState(false);
+  
+  // Application state
   const [error, setError] = useState<string | null>(null);
   const [tempAccountToSave, setTempAccountToSave] = useState<AuthAccount | null>(null);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // Listen for theme changes
+  /** Theme change listener */
   useEffect(() => {
     return window.electronAPI.onThemeChange((darkMode) => {
       setIsDarkMode(darkMode);
-      // Update body class for dark mode
       document.body.classList.toggle('dark', darkMode);
     });
   }, []);
 
-  // Debug state changes
-  useEffect(() => {
-    console.log('State changed:', {
-      hasAccounts: savedAccounts.length > 0,
-      hasCurrentAccount: !!currentAccount,
-      showAddModal,
-      hasPassword: !!password,
-      showPasswordPrompt,
-      hasTempPassword: !!tempPassword,
-      hasConfirmPassword: !!confirmPassword,
-      error,
-      hasTempAccountToSave: !!tempAccountToSave,
-      isFirstLoad
-    });
-  }, [savedAccounts, currentAccount, showAddModal, password, showPasswordPrompt, 
-      tempPassword, confirmPassword, error, tempAccountToSave, isFirstLoad]);
-
-  // Check for existing secrets on first load
+  /** Initial secrets check on app load */
   useEffect(() => {
     const checkForExistingSecrets = async () => {
-      console.log('🔍 Checking for existing secrets...');
       try {
-        // Try to load accounts without password first
         await window.electronAPI.loadAccounts('');
-        console.log('📭 No encrypted data found, first use');
-        setIsFirstLoad(false);
+        setHasStoredAccounts(false);
       } catch (error) {
-        console.log('🔐 Initial load check result:', error);
-        // Log the error details to help with debugging
-        console.log('Error type:', typeof error);
-        console.log('Error name:', (error as Error).name);
-        console.log('Error message:', (error as Error).message);
-        console.log('Is Error instance:', error instanceof Error);
-
-        // Check if this is a password required error
-        const isPasswordRequired = 
-          error instanceof Error && (
-            error.name === 'PasswordRequiredError' ||
-            error.message.includes('Password required')
-          );
+        const isPasswordRequired = error instanceof Error && 
+          (error.name === 'PasswordRequiredError' || error.message.includes('Password required'));
 
         if (isPasswordRequired) {
-          console.log('🔒 Found encrypted data, showing password prompt');
+          setHasStoredAccounts(true);
           setShowPasswordPrompt(true);
-        } else {
-          console.error('❌ Unexpected error during initial load:', error);
         }
-        setIsFirstLoad(false);
       }
+      setIsFirstLoad(false);
     };
 
-    console.log('🚀 App mounted, starting initial check');
     checkForExistingSecrets();
   }, []);
 
-  // Load saved accounts if password exists
+  /** Load saved accounts when password is provided */
   useEffect(() => {
-    if (!password || isFirstLoad) {
-      console.log('⏳ Skipping account load:', { hasPassword: !!password, isFirstLoad });
-      return;
-    }
+    if (!password || isFirstLoad) return;
 
     const loadAccounts = async () => {
-      console.log('📂 Attempting to load accounts with password');
       try {
         const loadedAccounts = await window.electronAPI.loadAccounts(password);
-        console.log('✅ Successfully loaded accounts:', loadedAccounts.length);
         setSavedAccounts(loadedAccounts);
         setError(null);
         window.electronAPI.startCleanupTimer();
       } catch (error) {
-        console.error('❌ Failed to load accounts:', error);
         setError('Invalid password or corrupted data');
         setPassword(null);
         setShowPasswordPrompt(true);
@@ -122,65 +92,69 @@ function App() {
     loadAccounts();
   }, [password, isFirstLoad]);
 
-  // Save accounts whenever they change
+  /** Auto-save accounts when they change */
   useEffect(() => {
-    if (!password || savedAccounts.length === 0 || isFirstLoad) {
-      console.log('⏳ Skipping save:', { hasPassword: !!password, accountCount: savedAccounts.length, isFirstLoad });
-      return;
-    }
+    if (!password || savedAccounts.length === 0 || isFirstLoad) return;
 
-    console.log('💾 Saving accounts:', savedAccounts.length);
     window.electronAPI.saveAccounts(savedAccounts, password).catch((error) => {
-      console.error('❌ Failed to save accounts:', error);
       setError('Failed to save accounts');
     });
   }, [savedAccounts, password, isFirstLoad]);
 
-  const handleLogout = () => {
-    setPassword(null);
-    setShowPasswordPrompt(true);
-    setCurrentAccount(null);
-    setSavedAccounts([]);
-  };
-
-  // Update the cleanup effect to use the shared function
+  /** Cleanup handler for security timeout */
   useEffect(() => {
     return window.electronAPI.onCleanupNeeded(handleLogout);
   }, []);
 
+  /** Handles complete logout and state reset */
+  const handleLogout = async () => {
+    await window.electronAPI.manualLogout();
+    setPassword(null);
+    setCurrentAccount(null);
+    setSavedAccounts([]);
+    setTempPassword('');
+    setConfirmPassword('');
+    setError(null);
+    
+    // Check if there are stored accounts after logout
+    try {
+      await window.electronAPI.loadAccounts('');
+      setHasStoredAccounts(false);
+      setShowPasswordPrompt(false);
+    } catch (error) {
+      const isPasswordRequired = error instanceof Error && 
+        (error.name === 'PasswordRequiredError' || error.message.includes('Password required'));
+      setHasStoredAccounts(isPasswordRequired);
+      setShowPasswordPrompt(isPasswordRequired);
+    }
+  };
+
+  /** Handles new account addition from QR or manual entry */
   const handleAddAccount = (account: AuthAccount) => {
     setCurrentAccount(account);
     setShowAddModal(false);
   };
 
+  /** Handles saving account with optional password creation */
   const handleSaveAccount = (accountToSave: AuthAccount) => {
     setTempAccountToSave(accountToSave);
     
-    // If we don't have a master password yet, show the password prompt
-    if (!password) {
-      setShowPasswordPrompt(true);
+    if (password) {
+      setSavedAccounts(prev => [...prev, accountToSave]);
       return;
     }
 
-    // If we already have a password, just save the account
-    setSavedAccounts(prev => [...prev, accountToSave]);
+    setShowPasswordPrompt(true);
   };
 
+  /** Handles password submission for unlock or creation */
   const handlePasswordSubmit = async () => {
-    console.log('🔑 Handling password submit:', {
-      hasTempPassword: !!tempPassword,
-      hasTempAccount: !!tempAccountToSave,
-      hasConfirmPassword: !!confirmPassword
-    });
-
     if (!tempPassword) {
       setError('Please enter your password');
       return;
     }
 
-    // Case 1: Loading existing accounts (no temp account to save)
     if (!tempAccountToSave) {
-      console.log('🔓 Unlocking existing accounts');
       setPassword(tempPassword);
       setShowPasswordPrompt(false);
       setTempPassword('');
@@ -188,7 +162,6 @@ function App() {
       return;
     }
 
-    // Case 2: Creating new password for a new account
     if (!confirmPassword) {
       setError('Please confirm your password');
       return;
@@ -199,24 +172,65 @@ function App() {
       return;
     }
 
-    console.log('✨ Creating new account with password');
     setPassword(tempPassword);
     setShowPasswordPrompt(false);
     setTempPassword('');
     setConfirmPassword('');
     setError(null);
-
-    // Save the pending account
     setSavedAccounts(prev => [...prev, tempAccountToSave]);
     setTempAccountToSave(null);
   };
 
+  /** Handles Enter key press for password inputs */
+  const handlePasswordKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handlePasswordSubmit();
+  };
+
+  /** Handles account deletion with password reset when empty */
+  const handleAccountDelete = async (id: string) => {
+    const updatedAccounts = savedAccounts.filter(acc => acc.id !== id);
+    setSavedAccounts(updatedAccounts);
+    
+    if (currentAccount?.id === id) {
+      setCurrentAccount(null);
+    }
+
+    if (updatedAccounts.length === 0) {
+      setPassword(null);
+      setShowPasswordPrompt(false);
+      setHasStoredAccounts(false);
+      setTempPassword('');
+      setConfirmPassword('');
+      setError(null);
+      try {
+        // Save empty accounts array to clear the file
+        await window.electronAPI.saveAccounts([], '');
+      } catch (error) {
+        console.error('Failed to clear accounts:', error);
+      }
+    } else {
+      // Save remaining accounts
+      try {
+        await window.electronAPI.saveAccounts(updatedAccounts, password || '');
+      } catch (error) {
+        setError('Failed to save accounts');
+      }
+    }
+  };
+
   return (
     <div className={`min-h-screen ${isDarkMode ? 'dark bg-truefa-dark' : 'bg-truefa-light'}`}>
-      {showPasswordPrompt ? (
-        // Full-page password prompt
+      {showPasswordPrompt && (hasStoredAccounts || tempAccountToSave) ? (
+        /**
+         * Password prompt overlay
+         * Shown when:
+         * 1. Accessing stored accounts
+         * 2. Creating first password when saving an account
+         */
         <div className={`min-h-screen flex items-center justify-center p-4 ${isDarkMode ? 'bg-truefa-dark' : 'bg-truefa-light'}`}>
+          {/* Password form container */}
           <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-xl max-w-md w-full p-6`}>
+            {/* App logo and title */}
             <div className="flex items-center justify-center mb-6">
               <img src="/assets/truefa1.png" alt="TrueFA" className="w-16 h-16" />
             </div>
@@ -224,30 +238,34 @@ function App() {
               TrueFA
             </h1>
             
+            {/* Password form fields */}
             <div className="space-y-4">
+              {/* Error display */}
               {error && (
                 <div className="p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                   {error}
                 </div>
               )}
 
+              {/* Password input fields */}
               <div>
                 <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
-                  Master Password
+                  {hasStoredAccounts ? 'Master Password' : 'Create Master Password'}
                 </label>
                 <input
                   type="password"
                   value={tempPassword}
                   onChange={(e) => setTempPassword(e.target.value)}
+                  onKeyDown={handlePasswordKeyDown}
                   className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                     isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                   }`}
-                  placeholder={tempAccountToSave ? "Create master password" : "Enter your master password"}
+                  placeholder={hasStoredAccounts ? "Enter your master password" : "Create a strong password"}
                   autoFocus
                 />
               </div>
 
-              {tempAccountToSave && (
+              {!hasStoredAccounts && (
                 <div>
                   <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                     Confirm Password
@@ -256,36 +274,50 @@ function App() {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
+                    onKeyDown={handlePasswordKeyDown}
                     className={`w-full p-2 border rounded-lg focus:ring-2 focus:ring-truefa-blue focus:border-transparent ${
                       isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : ''
                     }`}
-                    placeholder="Confirm master password"
+                    placeholder="Confirm your password"
                   />
                 </div>
               )}
 
+              {/* Submit button and help text */}
               <button
                 onClick={handlePasswordSubmit}
                 className={`w-full py-2 px-4 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 ${
                   isDarkMode ? 'bg-gray-700' : ''
                 }`}
               >
-                {tempAccountToSave ? 'Create Password' : 'Unlock'}
+                {hasStoredAccounts ? 'Unlock' : 'Create Password'}
               </button>
 
-              {!tempAccountToSave && (
+              {hasStoredAccounts ? (
                 <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
-                  Enter your master password to access your accounts
+                  Enter your master password to access your saved accounts
+                </p>
+              ) : (
+                <p className={`text-xs text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-4`}>
+                  This password will be used to encrypt your saved accounts
                 </p>
               )}
             </div>
           </div>
         </div>
       ) : (
-        // Main application content
+        /**
+         * Main application layout
+         * Shows:
+         * 1. Header with navigation
+         * 2. Current token display
+         * 3. Account list or empty state
+         */
         <>
+          {/* Fixed header with app controls */}
           <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
             <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
+              {/* Logout button */}
               <button
                 onClick={handleLogout}
                 className={`flex items-center space-x-1 px-2 py-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none text-sm`}
@@ -293,9 +325,13 @@ function App() {
               >
                 <Lock className="w-4 h-4" />
               </button>
+
+              {/* App title */}
               <h1 className={`text-lg font-bold ${isDarkMode ? 'text-white' : 'text-truefa-dark'} absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2`}>
                 TrueFA
               </h1>
+
+              {/* Add account button */}
               <button
                 onClick={() => setShowAddModal(true)}
                 className={`flex items-center space-x-1 px-2 py-1 bg-truefa-blue text-white rounded-lg hover:bg-truefa-navy focus:outline-none focus:ring-2 focus:ring-truefa-blue focus:ring-offset-2 text-sm ${
@@ -308,7 +344,9 @@ function App() {
             </div>
           </header>
 
+          {/* Main content area */}
           <div className="pt-14 pb-2 px-2 min-h-screen max-w-7xl mx-auto">
+            {/* Token display section */}
             <div className="max-w-lg mx-auto mb-4">
               {currentAccount ? (
                 <TokenDisplay
@@ -318,6 +356,7 @@ function App() {
                   isDarkMode={isDarkMode}
                 />
               ) : (
+                /* Empty token display state */
                 <div className={`h-24 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg`}>
                   <div className={`text-center ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
                     <p className="text-sm">Select an account to view code</p>
@@ -326,24 +365,19 @@ function App() {
               )}
             </div>
 
+            {/* Account list or empty state */}
             {savedAccounts.length > 0 ? (
               <div className="h-[calc(100vh-11rem)] overflow-y-auto">
                 <AccountList
                   accounts={savedAccounts}
                   selectedId={currentAccount?.id}
-                  onSelect={(account) => {
-                    setCurrentAccount(account);
-                  }}
-                  onDelete={(id) => {
-                    setSavedAccounts(prev => prev.filter(acc => acc.id !== id));
-                    if (currentAccount?.id === id) {
-                      setCurrentAccount(null);
-                    }
-                  }}
+                  onSelect={setCurrentAccount}
+                  onDelete={handleAccountDelete}
                   isDarkMode={isDarkMode}
                 />
               </div>
             ) : (
+              /* Empty accounts state */
               <div className="h-[calc(100vh-11rem)] flex items-center justify-center">
                 <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-8 text-center max-w-sm mx-auto`}>
                   <Shield className="w-12 h-12 mx-auto mb-3 text-truefa-blue" />
@@ -359,6 +393,7 @@ function App() {
             )}
           </div>
 
+          {/* Add account modal */}
           {showAddModal && (
             <AddAccount
               onAdd={handleAddAccount}
