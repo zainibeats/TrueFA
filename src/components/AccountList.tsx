@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import type { AuthAccount } from '../lib/types';
 
@@ -13,10 +13,10 @@ import type { AuthAccount } from '../lib/types';
  */
 interface AccountListProps {
   accounts: AuthAccount[];
-  selectedId: string | undefined;
+  selectedId?: string;
   onSelect: (account: AuthAccount) => void;
   onDelete: (id: string) => void;
-  isDarkMode: boolean;
+  isDarkMode?: boolean;
 }
 
 /**
@@ -33,7 +33,22 @@ interface AccountListProps {
  * @param {AccountListProps} props - Component properties
  * @returns {JSX.Element} Rendered account list or empty state message
  */
-export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMode }: AccountListProps) {
+export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMode = false }: AccountListProps) {
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleDeleteClick = (id: string) => {
+    setDeleteConfirmId(id);
+  };
+
+  const handleConfirmDelete = (id: string) => {
+    onDelete(id);
+    setDeleteConfirmId(null);
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteConfirmId(null);
+  };
+
   if (accounts.length === 0) {
     return (
       <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
@@ -52,46 +67,59 @@ export function AccountList({ accounts, selectedId, onSelect, onDelete, isDarkMo
         <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mt-1`}>{accounts.length} total</p>
       </div>
       <div className="p-4">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
+        <div className="space-y-2">
           {accounts.map((account) => (
             <div
               key={account.id}
-              className={`
-                group relative p-2 sm:p-3 rounded-lg cursor-pointer transition-all duration-150
-                ${selectedId === account.id 
-                  ? isDarkMode 
-                    ? 'bg-gray-700 border-2 border-truefa-blue'
-                    : 'bg-truefa-sky border-2 border-truefa-blue'
-                  : isDarkMode
-                    ? 'bg-gray-900 hover:bg-gray-700 border-2 border-transparent'
-                    : 'bg-truefa-light hover:bg-truefa-sky border-2 border-transparent'
-                }
-              `}
+              className={`relative ${
+                selectedId === account.id
+                  ? isDarkMode ? 'bg-gray-700' : 'bg-truefa-sky'
+                  : isDarkMode ? 'bg-gray-800' : 'bg-white'
+              } rounded-lg shadow-sm p-3 cursor-pointer transition-colors`}
               onClick={() => onSelect(account)}
             >
-              <div className="flex flex-col">
-                <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-truefa-dark'} truncate`}>
-                  {account.issuer}
-                </span>
-                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} truncate`}>
-                  {account.name}
-                </span>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className={`font-medium ${isDarkMode ? 'text-white' : 'text-truefa-dark'}`}>
+                    {account.issuer}
+                  </h3>
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'}`}>
+                    {account.name}
+                  </p>
+                </div>
+                {deleteConfirmId === account.id ? (
+                  <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => handleConfirmDelete(account.id)}
+                      className="px-2 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={handleCancelDelete}
+                      className={`px-2 py-1 text-sm rounded ${
+                        isDarkMode
+                          ? 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(account.id);
+                    }}
+                    className={`p-1 rounded-full hover:bg-opacity-10 ${
+                      isDarkMode ? 'hover:bg-white text-gray-300' : 'hover:bg-truefa-dark text-truefa-gray'
+                    }`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(account.id);
-                }}
-                className={`
-                  absolute right-2 top-2
-                  p-1.5 rounded-full transition-opacity duration-150
-                  opacity-0 group-hover:opacity-100
-                  ${isDarkMode ? 'hover:bg-red-900' : 'hover:bg-red-100'}
-                `}
-              >
-                <Trash2 className="w-4 h-4 text-red-600" />
-              </button>
             </div>
           ))}
         </div>
