@@ -23,6 +23,16 @@ module.exports = {
           dark: '#1A1A1A',
         },
       },
+      animation: {
+        'fade-out': 'fadeOut 2s ease-in-out forwards',
+      },
+      keyframes: {
+        fadeOut: {
+          '0%': { opacity: '1' },
+          '75%': { opacity: '1' },
+          '100%': { opacity: '0' },
+        },
+      },
     },
   },
   plugins: [],
