@@ -136,6 +136,18 @@ function App() {
     });
   }, [savedAccounts, password, isFirstLoad]);
 
+  const handleLogout = () => {
+    setPassword(null);
+    setShowPasswordPrompt(true);
+    setCurrentAccount(null);
+    setSavedAccounts([]);
+  };
+
+  // Update the cleanup effect to use the shared function
+  useEffect(() => {
+    return window.electronAPI.onCleanupNeeded(handleLogout);
+  }, []);
+
   const handleAddAccount = (account: AuthAccount) => {
     setCurrentAccount(account);
     setShowAddModal(false);
@@ -275,12 +287,7 @@ function App() {
           <header className={`fixed top-0 left-0 right-0 ${isDarkMode ? 'bg-gray-800' : 'bg-white'} shadow-sm z-10`}>
             <div className="container mx-auto px-4 h-12 flex items-center justify-between relative">
               <button
-                onClick={() => {
-                  setPassword(null);
-                  setShowPasswordPrompt(true);
-                  setCurrentAccount(null);
-                  setSavedAccounts([]);
-                }}
+                onClick={handleLogout}
                 className={`flex items-center space-x-1 px-2 py-1 ${isDarkMode ? 'text-gray-300 hover:text-white' : 'text-truefa-gray hover:text-truefa-dark'} focus:outline-none text-sm`}
                 title="Logout"
               >
