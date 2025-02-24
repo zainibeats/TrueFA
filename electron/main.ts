@@ -54,6 +54,34 @@ const getSecureFilePath = (filename: string): string => {
 const SECRETS_FILE = getSecureFilePath(APP_CONSTANTS.SECRETS_FILENAME);
 const THEME_FILE = getSecureFilePath(APP_CONSTANTS.THEME_FILENAME);
 
+// Cache for secrets file existence check
+let secretsFileExistsCache: { exists: boolean; lastChecked: number } | null = null;
+const CACHE_VALIDITY_MS = 5000; // Cache valid for 5 seconds
+
+/**
+ * Checks if the secrets file exists with caching to reduce disk access
+ * @returns Promise<boolean> Whether the secrets file exists
+ */
+async function checkSecretsFileExists(): Promise<boolean> {
+  const now = Date.now();
+  
+  // Return cached result if valid
+  if (secretsFileExistsCache && (now - secretsFileExistsCache.lastChecked) < CACHE_VALIDITY_MS) {
+    return secretsFileExistsCache.exists;
+  }
+
+  try {
+    await fs.promises.access(SECRETS_FILE);
+    secretsFileExistsCache = { exists: true, lastChecked: now };
+    console.log('✅ [Main] Secrets file exists');
+    return true;
+  } catch (error) {
+    secretsFileExistsCache = { exists: false, lastChecked: now };
+    console.log('📭 [Main] Secrets file does not exist');
+    return false;
+  }
+}
+
 // Development mode flag with secure check
 const isDev = (() => {
   try {
@@ -128,10 +156,10 @@ ipcMain.handle('update-vault-state', async (_event, locked: boolean) => {
 function createWindow() {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 400,
-    height: 600,
-    minWidth: 360,
-    minHeight: 500,
+    width: 390, // iPhone 12/13/14 width
+    height: 844, // iPhone 12/13/14 height
+    minWidth: 390,
+    minHeight: 700, // Reduced from 844 to allow for smaller window sizes
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -253,7 +281,7 @@ function updateMenu() {
 function encryptData(data: string, password: string): string {
   // Generate secure random values
   const salt = nodeCrypto.randomBytes(32);
-  const iv = nodeCrypto.randomBytes(16);
+  const iv = nodeCrypto.randomBytes(16);  // Back to 16 bytes
   
   // Add pepper (additional secret value) to password
   const pepper = Buffer.from(APP_CONSTANTS.ENCRYPTION_ALGORITHM).reverse();
@@ -321,7 +349,7 @@ function decryptData(encryptedData: string, password: string): string {
     
     // Extract components
     const salt = data.subarray(0, 32);
-    const iv = data.subarray(32, 48);
+    const iv = data.subarray(32, 48);  // Back to original positions
     const aad = data.subarray(48, 64);
     const authTag = data.subarray(64, 80);
     const lengthStr = data.subarray(80, 88).toString();
@@ -405,16 +433,12 @@ ipcMain.handle('load-accounts', async (_: Electron.IpcMainInvokeEvent, password:
   try {
     console.log('🔍 [Main] Attempting to load accounts from:', SECRETS_FILE);
     
-    // Check if the secrets file exists
-    try {
-      await fs.promises.access(SECRETS_FILE);
-      console.log('✅ [Main] Secrets file exists');
-    } catch (error) {
-      console.log('📭 [Main] Secrets file does not exist, returning empty array');
+    // Check if the secrets file exists using cached function
+    if (!await checkSecretsFileExists()) {
       return [];
     }
 
-    // Read the encrypted data first
+    // Read the encrypted data
     const encrypted = await fs.promises.readFile(SECRETS_FILE, 'utf8');
     console.log('📂 [Main] Successfully read encrypted data');
 
@@ -495,21 +519,37 @@ app.on('activate', () => {
 });
 
 ipcMain.handle('check-accounts-exist', async () => {
-  try {
-    await fs.promises.access(SECRETS_FILE);
-    console.log('✅ [Main] Secrets file exists');
-    hasMasterPassword = true;
-    return true;
-  } catch (error) {
-    console.log('📭 [Main] Secrets file does not exist');
-    hasMasterPassword = false;
-    return false;
-  }
+  const exists = await checkSecretsFileExists();
+  hasMasterPassword = exists;
+  return exists;
 });
 
 // Add handler for getting initial theme state
 ipcMain.handle('get-initial-theme', () => {
   return isDarkMode;
+});
+
+// Add handler for showing import dialog
+ipcMain.handle('showImportDialog', async () => {
+  if (!mainWindow) return { filePath: null };
+
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Import TrueFA Accounts',
+      filters: [
+        { name: 'TrueFA Export (GPG)', extensions: ['gpg'] },
+        { name: 'All Files', extensions: ['*'] }
+      ],
+      properties: ['openFile']
+    });
+
+    return {
+      filePath: result.filePaths[0] || null
+    };
+  } catch (error) {
+    console.error('Failed to show import dialog:', error);
+    return { filePath: null };
+  }
 });
 
 // Add handler for exporting accounts
