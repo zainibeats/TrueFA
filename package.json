@@ -9,15 +9,12 @@
   "main": "./dist-electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"npm run electron:dev\"",
-    "electron:dev": "tsc electron/main.ts electron/preload.ts --outDir dist-electron && cross-env NODE_ENV=development electron .",
+    "electron:dev": "tsc -p electron/tsconfig.json && cross-env NODE_ENV=development electron .",
     "preclean": "powershell -Command \"Stop-Process -Name TrueFA -ErrorAction SilentlyContinue; exit 0\"",
     "clean": "rimraf dist dist-electron build || powershell -Command \"Remove-Item -Recurse -Force dist, dist-electron, build -ErrorAction SilentlyContinue\"",
-    "build": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false",
-    "build:quick": "electron-builder --win --config.asar=false --dir",
-    "build:dev": "npm run clean && tsc && vite build && tsc electron/main.ts electron/preload.ts --outDir dist-electron && electron-builder --win --config.asar=false --dir",
-    "start:exe": "cd build/win-unpacked && .\\TrueFA.exe",
-    "rebuild": "npm run build && npm run start:exe",
-    "rebuild:dev": "npm run build:dev && npm run start:exe"
+    "build": "npm run clean && tsc && vite build && tsc -p electron/tsconfig.json && electron-builder --win",
+    "build:prod": "npm run clean && set NODE_ENV=production && tsc && vite build && tsc -p electron/tsconfig.json && electron-builder --win",
+    "postbuild": "echo Build completed! Check the build directory for the installer."
   },
   "build": {
     "appId": "com.truefa.app",
@@ -34,8 +31,24 @@
       "target": []
     },
     "win": {
-      "target": "dir",
-      "icon": "assets/truefa1.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/truefa1.ico",
+      "publisherName": "TrueFA",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TrueFA",
+      "installerIcon": "assets/truefa1.ico",
+      "uninstallerIcon": "assets/truefa1.ico"
     },
     "linux": {
       "target": []
@@ -57,7 +70,7 @@
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
     "electron": "^28.1.0",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^24.13.3",
     "postcss": "^8.4.35",
     "rimraf": "^6.0.1",
     "tailwindcss": "^3.4.1",
