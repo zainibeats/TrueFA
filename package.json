@@ -26,7 +26,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "assets/**/*"
+      "public/**/*"
     ],
     "mac": {
       "target": []
@@ -42,7 +42,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "assets/truefa1.ico",
+      "icon": "public/assets/truefa1.ico",
       "publisherName": "TrueFA",
       "requestedExecutionLevel": "asInvoker"
     },
@@ -52,11 +52,12 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "TrueFA",
-      "installerIcon": "assets/truefa1.ico",
-      "uninstallerIcon": "assets/truefa1.ico"
+      "installerIcon": "public/assets/truefa1.ico",
+      "uninstallerIcon": "public/assets/truefa1.ico"
     },
     "portable": {
-      "artifactName": "TrueFA-Portable-${version}.exe"
+      "artifactName": "TrueFA-Portable-${version}.exe",
+      "splashImage": "public/assets/truefa1.ico"
     },
     "linux": {
       "target": []
