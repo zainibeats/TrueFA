@@ -66,6 +66,8 @@ function App() {
   const [showExportSuccess, setShowExportSuccess] = useState(false);
   const [showPasswordChangeSuccess, setShowPasswordChangeSuccess] = useState(false);
   const [showImportSuccess, setShowImportSuccess] = useState(false);
+  const [showImportError, setShowImportError] = useState(false);
+  const [importErrorMessage, setImportErrorMessage] = useState('');
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isVerifyingCurrentPassword, setIsVerifyingCurrentPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -396,6 +398,11 @@ function App() {
 
     // Case: Importing accounts
     if (isImporting && importFilePath) {
+      if (!tempPassword) {
+        setError('Please enter your password');
+        return;
+      }
+
       try {
         const result = await window.electronAPI.importAccounts(importFilePath, tempPassword);
         if (result.success) {
@@ -409,10 +416,12 @@ function App() {
             });
             setSavedAccounts(newAccounts);
           } else {
-            // No existing accounts, just use the imported ones
+            // No existing accounts, treat this like a login
             setSavedAccounts(result.accounts);
             setPassword(tempPassword);
             setHasStoredAccounts(true);
+            // Save the imported accounts with the provided password
+            await window.electronAPI.saveAccounts(result.accounts, tempPassword);
           }
           setShowPasswordPrompt(false);
           setTempPassword('');
@@ -423,11 +432,22 @@ function App() {
           setTimeout(() => setShowImportSuccess(false), 2000);
           // Make sure vault stays unlocked
           await window.electronAPI.updateVaultState(false);
+          // Start cleanup timer
+          await window.electronAPI.startCleanupTimer();
         } else {
           setError(result.message);
+          // Show error notification
+          setImportErrorMessage(result.message);
+          setShowImportError(true);
+          setTimeout(() => setShowImportError(false), 2000);
         }
       } catch (error) {
-        setError(error instanceof Error ? error.message : 'Failed to import accounts');
+        const errorMessage = error instanceof Error ? error.message : 'Failed to import accounts';
+        setError(errorMessage);
+        // Show error notification
+        setImportErrorMessage(errorMessage);
+        setShowImportError(true);
+        setTimeout(() => setShowImportError(false), 2000);
         // Don't reset state on error if we're already logged in
         if (!password) {
           setImportFilePath(null);
@@ -621,8 +641,8 @@ function App() {
                     />
                   </div>
                   
-                  {/* Show confirmation field for new account creation */}
-                  {(!hasStoredAccounts || isExporting) && (
+                  {/* Show confirmation field for new account creation and exports */}
+                  {(!hasStoredAccounts || isExporting) && !isImporting && (
                     <div>
                       <label className={`block text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-truefa-gray'} mb-1`}>
                         Confirm Password
@@ -846,6 +866,14 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span>Import successful!</span>
+            </div>
+          )}
+          {showImportError && (
+            <div className="fixed top-14 right-4 flex items-center space-x-2 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg animate-fade-out">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>{importErrorMessage || 'Import failed'}</span>
             </div>
           )}
 
