@@ -5,9 +5,10 @@ import { resolve } from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: process.env.NODE_ENV === 'production' ? './' : '/',
+  base: './',
   build: {
     outDir: 'dist',
+    assetsDir: 'assets',
     emptyOutDir: true,
     rollupOptions: {
       input: {
@@ -16,7 +17,6 @@ export default defineConfig({
       external: [
         'electron',
         'electron-is-dev',
-        'crypto',
         'fs/promises',
         'path'
       ],
@@ -29,12 +29,30 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
-      'buffer': 'buffer/'
-    },
+      'crypto': 'crypto-browserify',
+      'stream': 'stream-browserify',
+      'buffer': 'buffer',
+      'process': 'process/browser'
+    }
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'jsqr', 'buffer'],
+    include: [
+      'react', 
+      'react-dom', 
+      'jsqr', 
+      'buffer', 
+      'process/browser',
+      'crypto-browserify', 
+      'stream-browserify'
+    ],
     exclude: ['electron', 'electron-is-dev']
+  },
+  define: {
+    'process.env': {
+      NODE_ENV: JSON.stringify(process.env.NODE_ENV),
+      NODE_DEBUG: false
+    },
+    'global': 'globalThis',
   },
   server: {
     port: 5173,

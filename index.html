@@ -2,12 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/assets/truefa1.png" />
+    <link rel="icon" type="image/x-icon" href="/assets/truefa1.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>TrueFA</title>
+    <script>
+      window.global = window;
+      var Buffer = require('buffer/').Buffer;
+    </script>
   </head>
-  <body class="bg-truefa-light">
+  <body>
     <div id="root"></div>
-    <script type="module" src="src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html> 
