@@ -207,6 +207,15 @@ contextBridge.exposeInMainWorld(
       };
     },
 
+    showImportDialog: async () => {
+      try {
+        return await ipcRenderer.invoke('showImportDialog');
+      } catch (error) {
+        console.error('Error showing import dialog:', error);
+        throw preserveError(error);
+      }
+    },
+
     updateVaultState: async (locked: boolean) => {
       try {
         return await ipcRenderer.invoke('update-vault-state', locked);
