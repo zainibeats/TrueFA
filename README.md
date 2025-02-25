@@ -55,6 +55,44 @@ npm test
 cd rust-crypto-core && cargo build --release
 ```
 
+### Version Management
+
+TrueFA includes scripts to streamline version management:
+
+```bash
+# Increment patch version (1.0.0 → 1.0.1)
+.\increment-version.bat patch
+
+# Increment minor version (1.0.0 → 1.1.0)
+.\increment-version.bat minor  
+
+# Increment major version (1.0.0 → 2.0.0)
+.\increment-version.bat major
+
+# Set specific version
+.\update-version.bat 1.2.3
+```
+
+### Release Process
+
+To create a complete release (including version update, build, and packaging):
+
+```bash
+# Create a patch release (1.0.0 → 1.0.1)
+.\release.bat patch
+
+# Create a minor release (1.0.0 → 1.1.0)
+.\release.bat minor
+
+# Create a major release (1.0.0 → 2.0.0)
+.\release.bat major
+
+# Release current version without changing it
+.\release.bat none
+```
+
+See [VERSION-MANAGEMENT.md](./VERSION-MANAGEMENT.md) for complete documentation.
+
 ## Project Structure
 
 ```
