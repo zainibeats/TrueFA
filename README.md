@@ -145,8 +145,6 @@ truefa/
 - Merge imported accounts with existing ones
 - Secure password protection for imports/exports
 
-> **Note**: When importing accounts, be careful with the password entry. Currently, entering an incorrect password will log you out of the application. This is a known issue that will be fixed in an upcoming release. See the "Known Issues" section for more details.
-
 ## Technical Architecture
 
 ### Hybrid Crypto Implementation
@@ -168,14 +166,16 @@ This design ensures that TrueFA works reliably in both development and productio
 
 ## Known Issues & Planned Improvements
 
-### Authentication Flow
-- **Import Password Bug**: Currently, entering an incorrect password during import operations while already logged in will cause the application to log the user out and return to the login screen. This issue affects users who are attempting to import accounts from an encrypted GPG file with the wrong password. This will be fixed in an upcoming release to maintain session integrity.
+### Recent Improvements
+- **Import Password Handling**: Fixed the issue where entering an incorrect password during account imports would log users out. Now users can retry imports with the correct password without losing their session.
+- **Hybrid Crypto Implementation**: Enhanced security with a two-tier approach using native Rust cryptography with Web Crypto API fallback.
+- **Cross-environment Compatibility**: Improved support for both browser and desktop environments with consistent security capabilities.
 
-### Future Enhancements
-- **Improved Error Handling**: Better isolation between authentication errors and operation-specific errors to prevent unintended session termination.
-- **Session Persistence**: More robust session management to prevent accidental logouts during non-critical operations.
+### Planned Enhancements
 - **Progressive Web App**: Exploring PWA support to enable installation directly from browsers without Electron.
 - **Additional Platforms**: Mobile app versions for Android and iOS using the same secure Rust core.
+- **Improved Error Handling**: Further refinements to error handling to provide clearer feedback to users during operations.
+- **Session Persistence**: Enhanced session management to prevent accidental logouts during non-critical operations.
 
 ## License
 
