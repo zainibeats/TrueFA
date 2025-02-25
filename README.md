@@ -145,6 +145,8 @@ truefa/
 - Merge imported accounts with existing ones
 - Secure password protection for imports/exports
 
+> **Note**: When importing accounts, be careful with the password entry. Currently, entering an incorrect password will log you out of the application. This is a known issue that will be fixed in an upcoming release. See the "Known Issues" section for more details.
+
 ## Technical Architecture
 
 ### Hybrid Crypto Implementation
@@ -163,6 +165,17 @@ TrueFA uses a hybrid approach to cryptographic operations:
    - Seamless experience across environments
 
 This design ensures that TrueFA works reliably in both development and production environments while maintaining the highest security standards possible.
+
+## Known Issues & Planned Improvements
+
+### Authentication Flow
+- **Import Password Bug**: Currently, entering an incorrect password during import operations while already logged in will cause the application to log the user out and return to the login screen. This issue affects users who are attempting to import accounts from an encrypted GPG file with the wrong password. This will be fixed in an upcoming release to maintain session integrity.
+
+### Future Enhancements
+- **Improved Error Handling**: Better isolation between authentication errors and operation-specific errors to prevent unintended session termination.
+- **Session Persistence**: More robust session management to prevent accidental logouts during non-critical operations.
+- **Progressive Web App**: Exploring PWA support to enable installation directly from browsers without Electron.
+- **Additional Platforms**: Mobile app versions for Android and iOS using the same secure Rust core.
 
 ## License
 
