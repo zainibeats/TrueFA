@@ -1,0 +1,35 @@
+{
+  "name": "truefa-crypto-core",
+  "version": "0.1.0",
+  "description": "Secure cryptographic operations for TrueFA authenticator with JavaScript fallback",
+  "main": "index.js",
+  "scripts": {
+    "build": "cargo build --release",
+    "install": "npm run build || echo \"Rust build failed, using JavaScript fallback\"",
+    "test": "cargo test",
+    "postinstall": "node -e \"console.log('Note: If Rust build failed, the module will use JavaScript fallback implementations.')\""
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "keywords": [
+    "totp",
+    "2fa",
+    "authentication",
+    "security",
+    "encryption",
+    "rust"
+  ],
+  "author": "TrueFA Developers",
+  "license": "MIT",
+  "engines": {
+    "node": ">= 12.0.0"
+  },
+  "dependencies": {
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -30,7 +30,6 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),
-      'crypto': 'crypto-browserify',
       'stream': 'stream-browserify',
       'buffer': 'buffer',
       'process': 'process/browser'
@@ -43,7 +42,6 @@ export default defineConfig({
       'jsqr', 
       'buffer', 
       'process/browser',
-      'crypto-browserify', 
       'stream-browserify'
     ],
     exclude: ['electron', 'electron-is-dev']

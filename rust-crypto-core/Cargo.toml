@@ -1,0 +1,42 @@
+[package]
+name = "truefa-crypto-core"
+version = "0.1.0"
+edition = "2021"
+authors = ["TrueFA Developers"]
+description = "Secure cryptographic operations for TrueFA authenticator"
+license = "MIT"
+readme = "../README.md"
+repository = "https://github.com/zainibeats/truefa"
+
+# Library configuration
+[lib]
+crate-type = ["cdylib"]  # Dynamic library for Node.js native module
+
+# Core dependencies
+[dependencies]
+# Node.js bindings
+napi = { version = "2.12.2", features = ["napi4"] }
+napi-derive = "2.12.2"
+
+# Cryptography libraries
+ring = "0.16.20"         # Modern cryptography primitives
+data-encoding = "2.4.0"  # Base32 and other encodings
+hmac = "0.12.1"          # HMAC implementation
+sha-1 = "0.10.1"         # SHA-1 for TOTP (required by RFC 6238)
+aes-gcm = "0.10.1"       # AES-GCM authenticated encryption
+base64 = "0.13.1"        # Base64 encoding/decoding
+
+# Security utilities
+zeroize = "1.6.0"        # Secure memory wiping
+
+# Build dependencies
+[build-dependencies]
+napi-build = "2.0.1"     # Node.js native addon build helper
+
+# Optimization settings
+[profile.release]
+lto = true               # Link-time optimization for size and performance
+codegen-units = 1        # Optimize for size
+opt-level = 3            # Maximum optimization
+panic = "abort"          # Smaller binary by removing unwinding code
+strip = true             # Remove debug symbols 

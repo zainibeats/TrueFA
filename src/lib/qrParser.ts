@@ -1,33 +1,31 @@
 import jsQR from 'jsqr';
 import type { OTPAuthData } from './types';
+import { TOTPManager } from './crypto';
 
 /**
- * Interface representing a parsed OTP Auth URL
- * Follows the 'otpauth://' URI scheme specification
- * 
- * @interface OTPAuthURL
- * @property {string} type - The OTP type (e.g., 'totp')
- * @property {string} secret - The secret key for OTP generation
- * @property {string} issuer - The service provider or issuer name
- * @property {string} account - The user account identifier
+ * Represents a parsed OTP Auth URL structure
+ * Follows the otpauth:// URI scheme specification
  */
 interface OTPAuthURL {
+  /** OTP type (totp) */
   type: string;
+  /** Base32 encoded secret key */
   secret: string;
+  /** Service provider name */
   issuer: string;
+  /** User account identifier */
   account: string;
 }
 
 /**
  * Parses an OTP Auth URL into its components
+ * 
  * Handles both standard and legacy formats:
  * - otpauth://totp/issuer:account?secret=...&issuer=...
  * - otpauth://totp/label?secret=...&issuer=...
  * 
- * @param {string} url - The OTP Auth URL to parse
- * @returns {OTPAuthData | null} Parsed OTP data or null if invalid
- * @example
- * const result = parseOTPAuthURL('otpauth://totp/Example:user@example.com?secret=JBSWY3DPEHPK3PXP&issuer=Example');
+ * @param url - OTP Auth URL to parse
+ * @returns Parsed OTP data or null if invalid
  */
 export function parseOTPAuthURL(url: string): OTPAuthData | null {
   try {
@@ -89,16 +87,9 @@ export function parseOTPAuthURL(url: string): OTPAuthData | null {
 
 /**
  * Decodes a QR code from image data using the jsQR library
- * Supports various image formats and sizes
  * 
- * @param {ImageData} imageData - Raw image data from canvas or other source
- * @returns {Promise<string | null>} Decoded QR code content or null if not found
- * @throws {Error} If image data is invalid or processing fails
- * @example
- * const canvas = document.createElement('canvas');
- * const ctx = canvas.getContext('2d');
- * const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
- * const result = await decodeQRFromImage(imageData);
+ * @param imageData - Raw image data from canvas
+ * @returns Decoded QR code content or null if not found
  */
 export async function decodeQRFromImage(imageData: ImageData): Promise<string | null> {
   try {
@@ -111,16 +102,11 @@ export async function decodeQRFromImage(imageData: ImageData): Promise<string | 
 }
 
 /**
- * Validates a TOTP secret key
- * Checks if the key is a valid Base32 string
+ * Validates a TOTP secret key using the Rust crypto module
  * 
- * @param {string} secret - The secret key to validate
- * @returns {boolean} Whether the secret is valid
+ * @param secret - The secret key to validate
+ * @returns Whether the secret is valid Base32
  */
 export function validateTOTPSecret(secret: string): boolean {
-  // Remove spaces and convert to uppercase
-  const cleanSecret = secret.replace(/\s/g, '').toUpperCase();
-  
-  // Check if the secret is a valid Base32 string
-  return /^[A-Z2-7]+=*$/.test(cleanSecret);
+  return TOTPManager.validateSecret(secret);
 } 

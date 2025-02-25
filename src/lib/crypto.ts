@@ -1,9 +1,329 @@
 import { Buffer } from 'buffer';
-import * as nodeCrypto from 'crypto';
 
 /**
- * TOTP (Time-based One-Time Password) implementation
- * Follows RFC 6238 specifications for time-based OTP generation
+ * Rust crypto module integration
+ * 
+ * This file provides TypeScript interfaces to the native Rust crypto module
+ * with a Web Crypto API fallback for environments where the native module
+ * is not available (browser, development, etc.)
+ */
+
+// Dynamic import for our Rust module
+let rustCrypto: any = null;
+
+// Debug helper to log which implementation is being used
+function debugCrypto(message: string) {
+  console.log(`[CRYPTO-DEBUG] ${message}`);
+}
+
+/**
+ * Result interface matching the Rust module's return format
+ */
+interface CryptoResult {
+  /** Resulting data (encrypted/decrypted) */
+  data: string;
+  /** Whether the operation succeeded */
+  success: boolean;
+  /** Optional error message */
+  error?: string;
+}
+
+/**
+ * Browser fallback implementation using Web Crypto API
+ * Used when the Rust module is unavailable
+ */
+const browserFallback = {
+  /**
+   * Generate a TOTP token using Web Crypto API
+   * @param secret - Base32 encoded secret
+   * @returns 6-digit OTP code
+   */
+  generateToken: async (secret: string): Promise<string> => {
+    debugCrypto("Using browser fallback for token generation");
+    
+    // TOTP configuration constants
+    const DIGITS = 6;
+    const PERIOD = 30;
+    
+    // Get current time window
+    const timeWindow = Math.floor(Date.now() / 1000 / PERIOD);
+    
+    // Convert time to buffer
+    const timeBuffer = new Uint8Array(8);
+    let bigIntTime = BigInt(timeWindow);
+    for (let i = 7; i >= 0; i--) {
+      timeBuffer[i] = Number(bigIntTime & BigInt(0xff));
+      bigIntTime >>= BigInt(8);
+    }
+    
+    // Convert secret to buffer
+    const secretBuffer = base32ToBuffer(secret);
+    
+    // Use Web Crypto API for HMAC
+    const key = await crypto.subtle.importKey(
+      'raw',
+      secretBuffer,
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign']
+    );
+    
+    const hmacResult = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      timeBuffer
+    );
+    
+    const hmacArray = new Uint8Array(hmacResult);
+    
+    // Get offset
+    const offset = hmacArray[hmacArray.length - 1] & 0xf;
+    
+    // Generate 4-byte code
+    const code = (
+      ((hmacArray[offset] & 0x7f) << 24) |
+      ((hmacArray[offset + 1] & 0xff) << 16) |
+      ((hmacArray[offset + 2] & 0xff) << 8) |
+      (hmacArray[offset + 3] & 0xff)
+    ) % 1000000;
+    
+    // Pad with zeros if needed
+    return code.toString().padStart(6, '0');
+  },
+  
+  /**
+   * Calculate remaining seconds in current period
+   * @returns Number of seconds until next token
+   */
+  getRemainingTime: (): number => {
+    debugCrypto("Using browser fallback for remaining time");
+    const PERIOD = 30;
+    const now = Math.floor(Date.now() / 1000);
+    const timeWindow = Math.floor(now / PERIOD);
+    const nextWindow = (timeWindow + 1) * PERIOD;
+    return nextWindow - now;
+  },
+  
+  /**
+   * Validate a Base32 secret
+   * @param secret - The secret to validate
+   * @returns Whether the secret is valid
+   */
+  validateSecret: (secret: string): boolean => {
+    debugCrypto("Using browser fallback for secret validation");
+    const cleanSecret = secret.replace(/\s/g, '').toUpperCase();
+    return /^[A-Z2-7]+=*$/.test(cleanSecret);
+  },
+  
+  /**
+   * Encrypt data using AES-GCM
+   * @param data - Plain text to encrypt
+   * @param password - Password for encryption
+   * @returns Encryption result with data and status
+   */
+  encrypt: async (data: string, password: string): Promise<CryptoResult> => {
+    debugCrypto("Using browser fallback for encryption");
+    try {
+      // Generate salt and IV
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      
+      // Derive key using PBKDF2
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: 210000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt']
+      );
+      
+      // Encrypt data
+      const encryptedContent = await crypto.subtle.encrypt(
+        {
+          name: 'AES-GCM',
+          iv
+        },
+        key,
+        new TextEncoder().encode(data)
+      );
+      
+      // Combine salt, iv, and encrypted data
+      const result = new Uint8Array(salt.length + iv.length + new Uint8Array(encryptedContent).length);
+      result.set(salt, 0);
+      result.set(iv, salt.length);
+      result.set(new Uint8Array(encryptedContent), salt.length + iv.length);
+      
+      return {
+        data: Buffer.from(result).toString('base64'),
+        success: true
+      };
+    } catch (error) {
+      console.error('Browser encryption error:', error);
+      return {
+        data: '',
+        success: false,
+        error: `Encryption failed: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  },
+  
+  /**
+   * Decrypt data using AES-GCM
+   * @param encryptedData - Base64 encoded encrypted data
+   * @param password - Password for decryption
+   * @returns Decryption result with data and status
+   */
+  decrypt: async (encryptedData: string, password: string): Promise<CryptoResult> => {
+    debugCrypto("Using browser fallback for decryption");
+    try {
+      // Decode base64
+      const data = Buffer.from(encryptedData, 'base64');
+      
+      // Extract salt, iv, and ciphertext
+      const salt = data.slice(0, 16);
+      const iv = data.slice(16, 28);
+      const ciphertext = data.slice(28);
+      
+      // Derive key
+      const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(password),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+      );
+      
+      const key = await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt,
+          iterations: 210000,
+          hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['decrypt']
+      );
+      
+      // Decrypt data
+      const decrypted = await crypto.subtle.decrypt(
+        {
+          name: 'AES-GCM',
+          iv
+        },
+        key,
+        ciphertext
+      );
+      
+      return {
+        data: new TextDecoder().decode(decrypted),
+        success: true
+      };
+    } catch (error) {
+      console.error('Browser decryption error:', error);
+      return {
+        data: '',
+        success: false,
+        error: 'Decryption failed: wrong password'
+      };
+    }
+  }
+};
+
+/**
+ * Base32 to buffer conversion helper
+ * @param base32 - Base32 encoded string
+ * @returns Decoded bytes as Uint8Array
+ */
+function base32ToBuffer(base32: string): Uint8Array {
+  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const cleanBase32 = base32.replace(/\s/g, '').toUpperCase();
+  
+  let bits = '';
+  for (const char of cleanBase32) {
+    const value = charset.indexOf(char);
+    if (value === -1) {
+      throw new Error('Invalid Base32 character');
+    }
+    bits += value.toString(2).padStart(5, '0');
+  }
+  
+  const bytes = new Uint8Array(Math.floor(bits.length / 8));
+  for (let i = 0; i < bytes.length; i++) {
+    const byteStr = bits.slice(i * 8, (i + 1) * 8);
+    bytes[i] = parseInt(byteStr, 2);
+  }
+  
+  return bytes;
+}
+
+/**
+ * Initialize the crypto module
+ * Automatically selects the best available implementation:
+ * 1. Rust native module (Node.js/Electron)
+ * 2. Web Crypto API (browser)
+ */
+(async function initCrypto() {
+  try {
+    // Detect if we're in a browser or Node.js environment
+    const isNodeEnvironment = typeof process !== 'undefined' && 
+                              process.versions != null && 
+                              process.versions.node != null;
+    
+    if (isNodeEnvironment) {
+      // For Node.js (Electron) environment, use dynamic import
+      console.log('💻 Running in Node.js environment');
+      
+      try {
+        // In Node.js, we can use require() for CommonJS modules
+        // @ts-ignore
+        rustCrypto = require('../../rust-crypto-core');
+        console.log('✅ Successfully loaded crypto module with Node.js require');
+      } catch (nodeErr) {
+        console.warn('⚠️ Failed to load with require, trying dynamic import');
+        
+        // Fallback to dynamic import if require fails
+        try {
+          // @ts-ignore
+          const module = await import('../../rust-crypto-core');
+          rustCrypto = module.default || module;
+          console.log('✅ Successfully loaded crypto module with dynamic import');
+        } catch (importErr) {
+          console.error('❌ All loading methods failed, using browser fallback', importErr);
+          rustCrypto = browserFallback;
+        }
+      }
+    } else {
+      // For browser environment, use browser fallback
+      console.log('🌐 Running in browser environment');
+      rustCrypto = browserFallback;
+    }
+  } catch (err) {
+    // Log error but continue with fallback
+    console.error('❌ Error initializing crypto module, using browser fallback', err);
+    rustCrypto = browserFallback;
+  }
+})();
+
+/**
+ * TOTP (Time-based One-Time Password) manager
+ * 
+ * Provides time-based OTP generation following RFC 6238
+ * Uses the Rust implementation when available, with Web Crypto API fallback
  */
 export class TOTPManager {
   // TOTP configuration constants
@@ -12,217 +332,160 @@ export class TOTPManager {
 
   /**
    * Generates a TOTP token for the current time period
+   * 
    * @param secret - Base32 encoded secret key
-   * @returns Promise<string> 6-digit OTP
+   * @returns 6-digit OTP token
    */
   static async generateToken(secret: string): Promise<string> {
     try {
-      // Get current time window
-      const timeWindow = Math.floor(Date.now() / 1000 / this.PERIOD);
-      
-      // Convert time to buffer
-      const timeBuffer = Buffer.alloc(8);
-      let bigIntTime = BigInt(timeWindow);
-      for (let i = 7; i >= 0; i--) {
-        timeBuffer[i] = Number(bigIntTime & BigInt(0xff));
-        bigIntTime >>= BigInt(8);
+      if (!rustCrypto) {
+        throw new Error('Crypto module not initialized');
       }
-      
-      // Convert secret to buffer
-      const secretBuffer = this.base32ToBuffer(secret);
-      
-      // Use Web Crypto API for HMAC
-      const key = await crypto.subtle.importKey(
-        'raw',
-        secretBuffer,
-        { name: 'HMAC', hash: 'SHA-1' },
-        false,
-        ['sign']
-      );
-      
-      const hmacResult = await crypto.subtle.sign(
-        'HMAC',
-        key,
-        timeBuffer
-      );
-      
-      const hmacArray = new Uint8Array(hmacResult);
-      
-      // Get offset
-      const offset = hmacArray[hmacArray.length - 1] & 0xf;
-      
-      // Generate 4-byte code
-      const code = (
-        ((hmacArray[offset] & 0x7f) << 24) |
-        ((hmacArray[offset + 1] & 0xff) << 16) |
-        ((hmacArray[offset + 2] & 0xff) << 8) |
-        (hmacArray[offset + 3] & 0xff)
-      ) % 1000000;
-      
-      // Pad with zeros if needed
-      return code.toString().padStart(6, '0');
+      // All implementations are now handled by the module
+      return rustCrypto.generateToken(secret);
     } catch (error) {
       console.error('Failed to generate TOTP:', error);
-      throw error;
+      
+      // If crypto module failed, use browser fallback as last resort
+      return browserFallback.generateToken(secret);
     }
   }
 
   /**
    * Calculates remaining time in current period
-   * @returns number of seconds until next token
+   * 
+   * @returns Seconds until next token generation
    */
   static getRemainingTime(): number {
-    const timeWindow = Math.floor(Date.now() / 1000 / this.PERIOD);
-    const nextWindow = (timeWindow + 1) * this.PERIOD;
-    return nextWindow - Math.floor(Date.now() / 1000);
+    try {
+      if (!rustCrypto) {
+        throw new Error('Crypto module not initialized');
+      }
+      // All implementations are now handled by the module
+      return rustCrypto.getRemainingTime();
+    } catch (error) {
+      console.error('Failed to get remaining time:', error);
+      
+      // If crypto module failed, use browser fallback as last resort
+      return browserFallback.getRemainingTime();
+    }
   }
 
   /**
-   * Validates a Base32 secret key format
-   * @param secret - The secret key to validate
-   * @returns boolean indicating if secret is valid Base32
+   * Validates a Base32 secret format
+   * 
+   * @param secret - Secret key to validate
+   * @returns Whether the secret is valid Base32
    */
   static validateSecret(secret: string): boolean {
-    // Remove spaces and convert to uppercase
-    const cleanSecret = secret.replace(/\s/g, '').toUpperCase();
-    
-    // Check if the secret is a valid Base32 string
-    return /^[A-Z2-7]+=*$/.test(cleanSecret);
-  }
-
-  /**
-   * Converts Base32 string to buffer
-   * @param base32 - Base32 encoded string
-   * @returns Uint8Array of decoded data
-   */
-  private static base32ToBuffer(base32: string): Uint8Array {
-    // Base32 character set (RFC 4648)
-    const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    
-    // Remove padding and convert to uppercase
-    const cleanBase32 = base32.replace(/=+$/, '').toUpperCase();
-    
-    // Convert to binary string
-    let bits = '';
-    for (const char of cleanBase32) {
-      const value = charset.indexOf(char);
-      if (value === -1) {
-        throw new Error('Invalid Base32 character');
+    try {
+      if (!rustCrypto) {
+        throw new Error('Crypto module not initialized');
       }
-      bits += value.toString(2).padStart(5, '0');
+      // All implementations are now handled by the module
+      return rustCrypto.validateSecret(secret);
+    } catch (error) {
+      console.error('Failed to validate secret:', error);
+      
+      // If crypto module failed, use browser fallback as last resort
+      return browserFallback.validateSecret(secret);
     }
-    
-    // Convert binary string to buffer
-    const bytes = new Uint8Array(Math.floor(bits.length / 8));
-    for (let i = 0; i < bytes.length; i++) {
-      const byteStr = bits.slice(i * 8, (i + 1) * 8);
-      bytes[i] = parseInt(byteStr, 2);
-    }
-    
-    return bytes;
   }
 }
 
 /**
- * Secure storage implementation using Web Crypto API
+ * Secure storage implementation
+ * 
  * Provides encryption and decryption using AES-256-GCM
+ * Uses the Rust native module when available, with Web Crypto API fallback
  */
 export class SecureStorage {
-  // Cryptographic parameters
-  private static readonly SALT_LENGTH = 16;     // Salt length in bytes
-  private static readonly IV_LENGTH = 12;       // IV length for GCM mode
-  private static readonly ALGORITHM = 'AES-GCM'; // Encryption algorithm
-  private static readonly KEY_LENGTH = 256;     // Key length in bits
-  private static readonly ITERATIONS = 100000;  // PBKDF2 iterations
-
   /**
    * Encrypts data using AES-256-GCM
-   * @param data - String data to encrypt
+   * 
+   * @param data - Data to encrypt
    * @param password - Password for key derivation
-   * @returns Promise<string> Base64 encoded encrypted data
+   * @returns Base64 encoded encrypted data
+   * @throws Error if encryption fails
    */
   static async encrypt(data: string, password: string): Promise<string> {
-    // Generate cryptographic parameters
-    const salt = crypto.getRandomValues(new Uint8Array(this.SALT_LENGTH));
-    const iv = crypto.getRandomValues(new Uint8Array(this.IV_LENGTH));
-    
-    // Derive encryption key and prepare data
-    const key = await this.deriveKey(password, salt);
-    const encodedData = new TextEncoder().encode(data);
-    
-    // Encrypt data using AES-GCM
-    const encrypted = await crypto.subtle.encrypt(
-      { name: this.ALGORITHM, iv },
-      key,
-      encodedData
-    );
-
-    // Combine parameters and encrypted data
-    const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
-    combined.set(salt, 0);
-    combined.set(iv, salt.length);
-    combined.set(new Uint8Array(encrypted), salt.length + iv.length);
-
-    return Buffer.from(combined).toString('base64');
+    try {
+      if (!rustCrypto) {
+        throw new Error('Crypto module not initialized');
+      }
+      
+      // All implementations are now handled by the module
+      const result = rustCrypto.encrypt(data, password);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Encryption failed');
+      }
+      
+      return result.data;
+    } catch (error) {
+      console.error('Encryption error:', error);
+      
+      // Try browser fallback as last resort
+      const fallbackResult = await browserFallback.encrypt(data, password);
+      if (!fallbackResult.success) {
+        throw new Error(fallbackResult.error || 'Encryption failed in fallback');
+      }
+      return fallbackResult.data;
+    }
   }
 
   /**
    * Decrypts data using AES-256-GCM
+   * 
    * @param encryptedData - Base64 encoded encrypted data
    * @param password - Password for key derivation
-   * @returns Promise<string> Decrypted string data
+   * @returns Decrypted data as string
+   * @throws Error if decryption fails or password is incorrect
    */
   static async decrypt(encryptedData: string, password: string): Promise<string> {
-    // Extract parameters and encrypted data
-    const data = Buffer.from(encryptedData, 'base64');
-    const salt = data.slice(0, this.SALT_LENGTH);
-    const iv = data.slice(this.SALT_LENGTH, this.SALT_LENGTH + this.IV_LENGTH);
-    const encrypted = data.slice(this.SALT_LENGTH + this.IV_LENGTH);
-
-    // Derive decryption key
-    const key = await this.deriveKey(password, salt);
-    
-    // Decrypt data using AES-GCM
-    const decrypted = await crypto.subtle.decrypt(
-      { name: this.ALGORITHM, iv },
-      key,
-      encrypted
-    );
-
-    return new TextDecoder().decode(decrypted);
-  }
-
-  /**
-   * Derives encryption key using PBKDF2
-   * @param password - Password for key derivation
-   * @param salt - Salt for key derivation
-   * @returns Promise<CryptoKey> Derived key for encryption/decryption
-   */
-  private static async deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
-    const encoder = new TextEncoder();
-    const passwordBuffer = encoder.encode(password);
-
-    // Import password as base key
-    const baseKey = await crypto.subtle.importKey(
-      'raw',
-      passwordBuffer,
-      'PBKDF2',
-      false,
-      ['deriveKey']
-    );
-
-    // Derive final key using PBKDF2
-    return crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt,
-        iterations: this.ITERATIONS,
-        hash: 'SHA-256'
-      },
-      baseKey,
-      { name: this.ALGORITHM, length: this.KEY_LENGTH },
-      false,
-      ['encrypt', 'decrypt']
-    );
+    try {
+      if (!rustCrypto) {
+        throw new Error('Crypto module not initialized');
+      }
+      
+      // All implementations are now handled by the module
+      const result = rustCrypto.decrypt(encryptedData, password);
+      
+      if (!result.success) {
+        // Use specific error name for incorrect password
+        const error = new Error(result.error || 'Decryption failed');
+        
+        if (result.error?.includes('wrong password')) {
+          error.name = 'IncorrectPasswordError';
+        }
+        
+        throw error;
+      }
+      
+      return result.data;
+    } catch (error: any) {
+      console.error('Decryption error:', error);
+      
+      // Try browser fallback as last resort
+      try {
+        const fallbackResult = await browserFallback.decrypt(encryptedData, password);
+        if (!fallbackResult.success) {
+          const fallbackError = new Error(fallbackResult.error || 'Decryption failed in fallback');
+          fallbackError.name = 'IncorrectPasswordError';
+          throw fallbackError;
+        }
+        return fallbackResult.data;
+      } catch (fallbackError: any) {
+        // Preserve error name if it exists
+        if (error.name !== 'Error') {
+          throw error;
+        }
+        
+        // Otherwise create a generic error
+        const newError = new Error('Decryption failed (possibly wrong password)');
+        newError.name = 'IncorrectPasswordError';
+        throw newError;
+      }
+    }
   }
 } 

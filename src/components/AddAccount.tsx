@@ -1,31 +1,47 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { QrCode, KeyRound, X } from 'lucide-react';
 import { TOTPManager } from '../lib/crypto';
-import { parseOTPAuthURL, decodeQRFromImage } from '../lib/qrParser';
-import type { AuthAccount } from '../lib/types';
+import { parseOTPAuthURL, decodeQRFromImage, validateTOTPSecret } from '../lib/qrParser';
+import type { AuthAccount, QRCodeResult } from '../lib/types';
 
-// Props interface for the AddAccount component
-// @interface AddAccountProps
-// @property {function} onAdd - Callback function when a new account is added
-// @property {function} onClose - Callback function to close the add account dialog
-// @property {boolean} isDarkMode - Whether dark mode is enabled
+/**
+ * Props for the AddAccount component
+ */
 interface AddAccountProps {
+  /** Callback when a new account is added */
   onAdd: (account: AuthAccount) => void;
+  /** Callback to close the dialog */
   onClose: () => void;
+  /** Whether dark mode is enabled */
   isDarkMode: boolean;
 }
 
-// Component for adding new authentication accounts via QR code or manual entry
-// 
-// Features:
-// - QR code scanning from image files
-// - Manual entry with secret key validation
-// - Error handling and validation
-// - Real-time feedback
-// 
-// @component
-// @param {AddAccountProps} props - Component properties
-// @returns {JSX.Element} Rendered add account form
+/**
+ * Generates a UUID v4 that works in both Node.js and browser environments
+ * Uses native crypto.randomUUID() with a fallback for older browsers
+ * 
+ * @returns A randomly generated UUID string
+ */
+function generateUUID(): string {
+  // Use crypto.randomUUID() if available (modern browsers and Node.js)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback implementation for older browsers
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * Component for adding new authentication accounts
+ * 
+ * Supports both QR code scanning from images and manual entry
+ * with real-time validation using the Rust crypto module
+ */
 export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
   const [mode, setMode] = useState<'qr' | 'manual'>('qr');
   const [error, setError] = useState('');
@@ -36,10 +52,10 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
   const [manualIssuer, setManualIssuer] = useState('');
   const [manualAccount, setManualAccount] = useState('');
 
-  // Handles QR code image file selection and processing
-  // Attempts to decode QR code and extract OTP authentication data
-  // 
-  // @param {React.ChangeEvent<HTMLInputElement>} e - File input change event
+  /**
+   * Processes QR code from uploaded image file
+   * Extracts OTP auth data and creates new account if valid
+   */
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -83,7 +99,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
             }
 
             const newAccount: AuthAccount = {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               name: otpData.account,
               issuer: otpData.issuer,
               secret: otpData.secret,
@@ -106,11 +122,10 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
     }
   };
 
-  // Handles manual account addition
-  // Validates secret key format and creates new account
-  // 
-  // @async
-  // @throws {Error} If secret key validation fails
+  /**
+   * Handles manual account addition with validation
+   * Validates secret key format using the Rust crypto module
+   */
   const handleManualAdd = async () => {
     if (!manualSecret || !manualIssuer) {
       setError('Secret and issuer are required');
@@ -121,7 +136,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
       // Clean up the secret (remove spaces and convert to uppercase)
       const cleanSecret = manualSecret.replace(/\s/g, '').toUpperCase();
       
-      // Validate the secret format
+      // Validate the secret format using the Rust module
       if (!TOTPManager.validateSecret(cleanSecret)) {
         setError('Invalid secret key format. Must be a valid Base32 string (A-Z, 2-7)');
         return;
@@ -146,7 +161,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
       }
 
       const newAccount: AuthAccount = {
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: manualAccount.trim() || 'Unknown',
         issuer: manualIssuer.trim(),
         secret: cleanSecret,
@@ -160,6 +175,7 @@ export function AddAccount({ onAdd, onClose, isDarkMode }: AddAccountProps) {
     }
   };
 
+  // Handle Enter key press in input fields
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleManualAdd();
