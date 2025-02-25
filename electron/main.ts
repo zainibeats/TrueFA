@@ -1,9 +1,11 @@
 // Import required Electron modules and Node.js built-ins
-import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, MenuItemConstructorOptions, dialog, session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nodeCrypto from 'crypto';
 import type { CipherGCM, DecipherGCM } from 'crypto';
+// Add OS module for memory monitoring
+import * as os from 'os';
 
 interface AuthAccount {
   id: string;
@@ -149,12 +151,26 @@ ipcMain.handle('update-vault-state', async (_event, locked: boolean) => {
   return true; // Acknowledge receipt
 });
 
+// Performance monitoring variables
+let memoryUsageInterval: NodeJS.Timeout | null = null;
+let gcInterval: NodeJS.Timeout | null = null;
+
+// Memory management constants
+const MEMORY_CHECK_INTERVAL = 60000; // Check memory every minute
+const GC_INTERVAL = 300000; // Run GC every 5 minutes
+const HIGH_MEMORY_THRESHOLD = 500 * 1024 * 1024; // 500MB
+
 /**
  * Creates and configures the main application window
  * Sets up window properties, loads content, and configures menu
  */
 function createWindow() {
-  // Create the browser window.
+  // Force garbage collection before creating window
+  if (global.gc) {
+    global.gc();
+  }
+
+  // Create the browser window with optimized settings
   mainWindow = new BrowserWindow({
     width: 390, // iPhone 12/13/14 width
     height: 844, // iPhone 12/13/14 height
@@ -164,10 +180,51 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Performance optimizations
+      backgroundThrottling: false,
+      // Reduce memory usage
+      webSecurity: true,
+      enableWebSQL: false,
+      disableBlinkFeatures: 'Auxclick',
+      spellcheck: false,
+      // Add performance optimizations
+      javascript: true,
+      images: true,
+      defaultEncoding: 'UTF-8',
+      webgl: false,
+      offscreen: false,
     },
+    // Window settings
     frame: true,
     fullscreenable: true,
     maximizable: true,
+    // Reduce memory usage by disabling unnecessary features
+    show: false, // Don't show until ready-to-show
+    backgroundColor: isDarkMode ? '#1e293b' : '#ffffff',
+    // Improve performance by enabling the following:
+    paintWhenInitiallyHidden: true,
+  });
+
+  // Reduce memory footprint by limiting session cache size
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    // Add cache control headers to limit cache size
+    callback({ requestHeaders: { ...details.requestHeaders, 'Cache-Control': 'max-age=3600' } });
+  });
+
+  // Optimize memory by limiting navigation
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const targetUrl = isDev
+      ? 'http://localhost:5173/' // Vite dev server URL
+      : `file://${path.join(__dirname, '..', 'dist', 'index.html')}`;
+    
+    if (!url.startsWith(targetUrl)) {
+      event.preventDefault();
+    }
+  });
+
+  // Optimize memory by preventing new windows
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
   });
 
   if (mainWindow) {
@@ -185,11 +242,79 @@ function createWindow() {
       if (isDev) {
         mainWindow?.webContents.openDevTools();
       }
+      
+      // Start memory monitoring
+      startMemoryMonitoring();
+    });
+
+    // Release memory when window is closed
+    mainWindow.on('closed', () => {
+      stopMemoryMonitoring();
+      mainWindow = null;
+    });
+    
+    // Optimize memory usage by reducing unused resources
+    mainWindow.webContents.on('did-finish-load', () => {
+      // Clear cache for unused resources
+      session.defaultSession.clearCache();
+      // Reduce memory usage after page load
+      if (global.gc) {
+        global.gc();
+      }
     });
   }
 
   updateMenuState(true);
   updateMenu();
+}
+
+// Memory management functions
+function startMemoryMonitoring() {
+  // Clear any existing intervals
+  stopMemoryMonitoring();
+  
+  // Start memory usage monitoring
+  memoryUsageInterval = setInterval(() => {
+    const memoryInfo = process.memoryUsage();
+    
+    // Log memory usage in development mode
+    if (isDev) {
+      console.log('Memory Usage:', {
+        rss: `${Math.round(memoryInfo.rss / 1024 / 1024)} MB`,
+        heapTotal: `${Math.round(memoryInfo.heapTotal / 1024 / 1024)} MB`,
+        heapUsed: `${Math.round(memoryInfo.heapUsed / 1024 / 1024)} MB`,
+        external: `${Math.round(memoryInfo.external / 1024 / 1024)} MB`,
+        systemFree: `${Math.round(os.freemem() / 1024 / 1024)} MB`,
+        systemTotal: `${Math.round(os.totalmem() / 1024 / 1024)} MB`,
+      });
+    }
+    
+    // Trigger garbage collection if memory usage is high
+    if (memoryInfo.heapUsed > HIGH_MEMORY_THRESHOLD && global.gc) {
+      console.log('High memory usage detected, running garbage collection');
+      global.gc();
+    }
+  }, MEMORY_CHECK_INTERVAL);
+  
+  // Schedule periodic garbage collection
+  gcInterval = setInterval(() => {
+    if (global.gc) {
+      if (isDev) console.log('Running scheduled garbage collection');
+      global.gc();
+    }
+  }, GC_INTERVAL);
+}
+
+function stopMemoryMonitoring() {
+  if (memoryUsageInterval) {
+    clearInterval(memoryUsageInterval);
+    memoryUsageInterval = null;
+  }
+  
+  if (gcInterval) {
+    clearInterval(gcInterval);
+    gcInterval = null;
+  }
 }
 
 // Load theme preference
@@ -502,21 +627,39 @@ ipcMain.handle('manual-logout', () => {
   }
 });
 
-// Application lifecycle event handlers
-app.whenReady().then(async () => {
-  isDarkMode = await loadTheme();
+// App lifecycle events
+app.on('ready', async () => {
+  await loadTheme();
+  
+  // Check for secrets file existence
+  hasMasterPassword = await checkSecretsFileExists();
+  
   createWindow();
+  
+  // Initialize session with reduced memory limits
+  session.defaultSession.setPreloads([path.join(__dirname, 'preload.js')]);
+  session.defaultSession.setSpellCheckerEnabled(false);
 });
 
 app.on('window-all-closed', () => {
+  stopMemoryMonitoring();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  if (mainWindow === null) {
     createWindow();
+  }
+});
+
+// Add new cleanup on quit
+app.on('before-quit', () => {
+  stopMemoryMonitoring();
+  // Force run garbage collection one last time
+  if (global.gc) {
+    global.gc();
   }
 });
 

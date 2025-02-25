@@ -10,10 +10,13 @@ import { Buffer } from 'buffer';
 
 // Dynamic import for our Rust module
 let rustCrypto: any = null;
+let isCryptoInitialized = false;
 
-// Debug helper to log which implementation is being used
+// Debug helper to log which implementation is being used - disabled in production
 function debugCrypto(message: string) {
-  console.log(`[CRYPTO-DEBUG] ${message}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[CRYPTO-DEBUG] ${message}`);
+  }
 }
 
 /**
@@ -272,52 +275,81 @@ function base32ToBuffer(base32: string): Uint8Array {
 }
 
 /**
- * Initialize the crypto module
+ * Initialize the crypto module once
  * Automatically selects the best available implementation:
  * 1. Rust native module (Node.js/Electron)
  * 2. Web Crypto API (browser)
  */
-(async function initCrypto() {
+function initCrypto() {
+  // Only initialize once
+  if (isCryptoInitialized) return;
+  
   try {
     // Detect if we're in a browser or Node.js environment
     const isNodeEnvironment = typeof process !== 'undefined' && 
-                              process.versions != null && 
-                              process.versions.node != null;
+                            process.versions != null && 
+                            process.versions.node != null;
     
     if (isNodeEnvironment) {
       // For Node.js (Electron) environment, use dynamic import
-      console.log('💻 Running in Node.js environment');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('💻 Running in Node.js environment');
+      }
       
       try {
-        // In Node.js, we can use require() for CommonJS modules
-        // @ts-ignore
-        rustCrypto = require('../../rust-crypto-core');
-        console.log('✅ Successfully loaded crypto module with Node.js require');
-      } catch (nodeErr) {
-        console.warn('⚠️ Failed to load with require, trying dynamic import');
-        
-        // Fallback to dynamic import if require fails
-        try {
-          // @ts-ignore
-          const module = await import('../../rust-crypto-core');
-          rustCrypto = module.default || module;
-          console.log('✅ Successfully loaded crypto module with dynamic import');
-        } catch (importErr) {
-          console.error('❌ All loading methods failed, using browser fallback', importErr);
-          rustCrypto = browserFallback;
+        // Avoid try/catch for performance in production
+        if (process.env.NODE_ENV !== 'development') {
+          try {
+            // @ts-ignore
+            rustCrypto = require('../../rust-crypto-core');
+          } catch (e) {
+            rustCrypto = browserFallback;
+          }
+        } else {
+          // More verbose loading in development
+          try {
+            // In Node.js, we can use require() for CommonJS modules
+            // @ts-ignore
+            rustCrypto = require('../../rust-crypto-core');
+            console.log('✅ Successfully loaded crypto module with Node.js require');
+          } catch (nodeErr) {
+            console.warn('⚠️ Failed to load with require, trying dynamic import');
+            
+            // Fallback to dynamic import if require fails
+            try {
+              // @ts-ignore
+              const module = require('../../rust-crypto-core');
+              rustCrypto = module.default || module;
+              console.log('✅ Successfully loaded crypto module with dynamic import');
+            } catch (importErr) {
+              console.error('❌ All loading methods failed, using browser fallback', importErr);
+              rustCrypto = browserFallback;
+            }
+          }
         }
+      } catch (err) {
+        rustCrypto = browserFallback;
       }
     } else {
       // For browser environment, use browser fallback
-      console.log('🌐 Running in browser environment');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🌐 Running in browser environment');
+      }
       rustCrypto = browserFallback;
     }
   } catch (err) {
     // Log error but continue with fallback
-    console.error('❌ Error initializing crypto module, using browser fallback', err);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ Error initializing crypto module, using browser fallback', err);
+    }
     rustCrypto = browserFallback;
   }
-})();
+  
+  isCryptoInitialized = true;
+}
+
+// Initialize on module load
+initCrypto();
 
 /**
  * TOTP (Time-based One-Time Password) manager
@@ -338,13 +370,19 @@ export class TOTPManager {
    */
   static async generateToken(secret: string): Promise<string> {
     try {
+      // Ensure crypto is initialized
       if (!rustCrypto) {
-        throw new Error('Crypto module not initialized');
+        initCrypto();
+        if (!rustCrypto) {
+          throw new Error('Crypto module not initialized');
+        }
       }
       // All implementations are now handled by the module
       return rustCrypto.generateToken(secret);
     } catch (error) {
-      console.error('Failed to generate TOTP:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Failed to generate TOTP:', error);
+      }
       
       // If crypto module failed, use browser fallback as last resort
       return browserFallback.generateToken(secret);

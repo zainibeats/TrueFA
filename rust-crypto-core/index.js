@@ -4,8 +4,8 @@ const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// Add global debug flag to show all loading details
-const DEBUG = true;
+// Set debug flag to false for production builds
+const DEBUG = process.env.NODE_ENV === 'development';
 
 // Helper to log debug messages
 function debug(...args) {
@@ -40,21 +40,27 @@ function findNativeModule() {
   
   debug('Using file extension:', extension);
   
-  // Array of possible paths to check
+  // Prioritize most common paths first for faster loading
+  // Only check a few known paths to minimize file system operations
   const possiblePaths = [
     path.join(__dirname, 'target', 'release', `truefa_crypto_core${extension}`),
-    path.join(__dirname, 'build', 'Release', `truefa_crypto_core${extension}`),
-    path.join(__dirname, 'build', 'Release', 'truefa_crypto_core'),
-    // Add raw paths (without extension) for non-Windows platforms
-    ...(!isWindows ? [
-      path.join(__dirname, 'target', 'release', 'truefa_crypto_core'),
-      path.join(__dirname, 'build', 'Release', 'truefa_crypto_core')
-    ] : [])
+    path.join(__dirname, 'build', 'Release', `truefa_crypto_core${extension}`)
   ];
+  
+  // Only add additional paths in development environment
+  if (process.env.NODE_ENV === 'development') {
+    possiblePaths.push(
+      path.join(__dirname, 'build', 'Release', 'truefa_crypto_core'),
+      ...(!isWindows ? [
+        path.join(__dirname, 'target', 'release', 'truefa_crypto_core')
+      ] : [])
+    );
+  }
   
   // Check each path
   for (const modulePath of possiblePaths) {
     debug(`Checking path: ${modulePath}`);
+    // Use synchronous file check to reduce overhead
     if (fs.existsSync(modulePath)) {
       debug(`File exists at: ${modulePath}`);
       try {
@@ -71,8 +77,6 @@ function findNativeModule() {
       } catch (err) {
         debug(`Error loading module from ${modulePath}:`, err.message);
       }
-    } else {
-      debug(`File does not exist at: ${modulePath}`);
     }
   }
   
@@ -80,7 +84,11 @@ function findNativeModule() {
   return null;
 }
 
-const nativeModule = findNativeModule();
+// Use a variable to ensure we only try to load the module once
+let nativeModuleLoaded = false;
+const nativeModule = nativeModuleLoaded ? null : findNativeModule();
+nativeModuleLoaded = true;
+
 debug('Native module loaded:', nativeModule ? 'SUCCESS' : 'USING FALLBACK');
 
 // ---------------------------------------------------------

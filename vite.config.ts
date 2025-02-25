@@ -11,9 +11,30 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 500,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+        ecma: 2020,
+        passes: 2,
+        keep_infinity: true,
+      },
+      format: {
+        comments: false,
+      },
+    },
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+      },
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'crypto-utils': ['buffer', 'stream-browserify', 'process'],
+          'ui-components': ['lucide-react'],
+        },
       },
       external: [
         'electron',
@@ -25,7 +46,8 @@ export default defineConfig({
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true
-    }
+    },
+    sourcemap: false,
   },
   resolve: {
     alias: {
