@@ -264,11 +264,13 @@ function App() {
 
   /** Handles password submission for unlock, creation, or import/export */
   const handlePasswordSubmit = async () => {
+    setError(null);
+    
     if (!tempPassword) {
       setError('Please enter your password');
       return;
     }
-
+    
     // Case: Changing master password - step 1: verify current password
     if (isChangingPassword && !isVerifyingCurrentPassword) {
       try {
@@ -285,7 +287,7 @@ function App() {
       }
       return;
     }
-
+    
     // Case: Changing master password - step 2: set new password
     if (isChangingPassword && isVerifyingCurrentPassword) {
       if (!tempPassword || !confirmPassword) {
@@ -324,7 +326,7 @@ function App() {
       }
       return;
     }
-
+    
     // Case 1: Creating first account (need password confirmation)
     if (tempAccountToSave && !hasStoredAccounts) {
       if (!confirmPassword) {
@@ -435,11 +437,21 @@ function App() {
           // Start cleanup timer
           await window.electronAPI.startCleanupTimer();
         } else {
+          // This is a password error during import, not a login error
           setError(result.message);
           // Show error notification
           setImportErrorMessage(result.message);
           setShowImportError(true);
           setTimeout(() => setShowImportError(false), 2000);
+          
+          // *** FIX: Don't log out if already logged in ***
+          // Only reset password if user is not already logged in
+          if (!password) {
+            setPassword(null);
+            setShowPasswordPrompt(true);
+            setImportFilePath(null);
+            setIsImporting(false);
+          }
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to import accounts';
@@ -448,20 +460,29 @@ function App() {
         setImportErrorMessage(errorMessage);
         setShowImportError(true);
         setTimeout(() => setShowImportError(false), 2000);
+        
+        // *** FIX: Don't trigger logout for import password errors if already logged in ***
+        // Only treat it as an incorrect master password if we're not already logged in
+        if (error instanceof Error && error.name === 'IncorrectPasswordError' && !password) {
+          // Only log out if we're not already logged in
+          setPassword(null);
+          setShowPasswordPrompt(true);
+        }
+        
         // Don't reset state on error if we're already logged in
         if (!password) {
           setImportFilePath(null);
           setIsImporting(false);
         }
       }
-      // Only reset these states if import was successful
-      if (!error) {
+      // Only reset these states if import was successful or if not logged in
+      if (!error && !password) {
         setImportFilePath(null);
         setIsImporting(false);
       }
       return;
     }
-
+    
     // Case 2: Unlocking existing accounts
     if (hasStoredAccounts) {
       try {
@@ -493,6 +514,9 @@ function App() {
       setError(null);
       return;
     }
+    
+    // If we got here, something went wrong
+    setError('Invalid operation');
   };
 
   /** Handles Enter key press for password inputs */
