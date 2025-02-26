@@ -1,15 +1,15 @@
-# TrueFA 1.0.2 Release
+# TrueFA 1.1.0 Release
 
 Thank you for downloading TrueFA, a secure offline TOTP authenticator application!
 
 ## What's Included
 
-- `TrueFA-Setup-1.0.2.exe` - Installer version
+- `TrueFA-Setup-1.1.0.exe` - Installer version
 - `VERIFY.txt` with detailed verification instructions
 
 ## Installation
 
-Run `TrueFA-Setup-1.0.2.exe` and follow the installation wizard. This will:
+Run `TrueFA-Setup-1.1.0.exe` and follow the installation wizard. This will:
 - Install TrueFA on your computer
 - Create desktop and start menu shortcuts
 - Allow uninstallation through Windows Control Panel
