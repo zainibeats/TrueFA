@@ -2,6 +2,8 @@
 
 TrueFA is a secure, offline Two-Factor Authentication (2FA) application built with Electron, React, and Rust. It provides a user-friendly interface for managing TOTP (Time-based One-Time Password) authentication codes while keeping your security tokens encrypted and stored locally.
 
+![icon](public/assets/truefa-add.jpg)
+
 ## Features
 
 - 🔑 Encrypted local storage with master password
