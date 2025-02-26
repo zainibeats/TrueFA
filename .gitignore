@@ -21,6 +21,16 @@ Thumbs.db
 
 # Release
 *.bat
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.tar.gz
+*.tar.bz2
+release-readme.txt
+VERSION-MANAGEMENT.md
 
 
 # Environment
