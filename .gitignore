@@ -30,6 +30,7 @@ Thumbs.db
 *.tar.gz
 *.tar.bz2
 release-readme.txt
+VERSION-MANAGEMENT.md
 
 
 # Environment
